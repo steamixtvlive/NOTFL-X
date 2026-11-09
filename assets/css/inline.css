@@ -1,0 +1,15 @@
+@keyframes tbShimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
+.tb-skeleton { background-image: linear-gradient(90deg, #161616 25%, #242424 37%, #161616 63%); background-size: 200% 100%; animation: tbShimmer 1.4s ease infinite; }
+[dir="rtl"] .ml-auto { margin-left: 0; margin-right: auto; }
+[dir="rtl"] .mr-auto { margin-right: 0; margin-left: auto; }
+[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
+.start-anchor { inset-inline-start: 0; }
+.end-anchor { inset-inline-end: 0; }
+/* Play-icon rotation for RTL */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+/* Inset utilities absent from the extracted filmmodu CSS (hero fragman pill + slider dots). */
+.bottom-6 { bottom: 1.5rem; }
+.right-6 { right: 1.5rem; }
+.left-0 { left: 0; }
+.right-0 { right: 0; }

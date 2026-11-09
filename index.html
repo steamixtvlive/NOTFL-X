@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="tr" data-tema="site">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NOTFLİX</title>
+<link id="themeCss" rel="stylesheet" href="assets/css/filmmodu.raw.css">
+<link rel="stylesheet" href="assets/css/inline.css">
+<style>
+  /* Window chrome: hidden scrollbar for shell only; keep no-scrollbar for rails */
+  html, body { background: var(--bg-primary, #0a0a0a); }
+  body::-webkit-scrollbar { width: 10px; }
+  body::-webkit-scrollbar-thumb { background: #333; border-radius: 8px; }
+  body::-webkit-scrollbar-track { background: transparent; }
+  /* Theme toggle chip */
+  #themeChip {
+    position: fixed; right: 16px; bottom: 16px; z-index: 60;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-radius: 999px;
+    background: rgba(20,20,20,.9); color: #fff;
+    font-family: Outfit, system-ui, sans-serif; font-size: 12px; font-weight: 600;
+    border: 1px solid rgba(255,255,255,.12);
+    backdrop-filter: blur(10px); cursor: pointer; user-select: none;
+  }
+  #themeChip:hover { background: rgba(30,30,30,.95); }
+  #themeChip .dot { width: 10px; height: 10px; border-radius: 50%; background: #e50914; }
+  html[data-tema="notflix"] #themeChip .dot { background: #12d9a0; }
+  /* Frameless window: transparent drag strip under header top + control cluster */
+  .win-drag { position: fixed; top: 0; left: 0; right: 138px; height: 44px; -webkit-app-region: drag; z-index: 90; }
+  #winControls { -webkit-app-region: no-drag; }
+  .win-ctl {
+    width: 46px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
+    color: #cbd0d8; background: transparent; border: 0; cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+  .win-ctl:hover { background: rgba(255,255,255,.12); color: #fff; }
+  .win-close:hover { background: #e50914; color: #fff; }
+  /* Marka fontu: worker splash'indeki Bebas Neue — kelime işaretleri bu fontu kullanır. */
+  @font-face { font-family:'Bebas Neue'; font-style:normal; font-weight:400; font-display:swap; src:url('assets/fonts/BebasNeue.woff2') format('woff2'); }
+  .brand-word { font-family:'Bebas Neue','Arial Narrow',Impact,sans-serif; font-weight:400; letter-spacing:.01em; }
+  /* Splash: worker'la birebir aynı sahne — harfler tek tek sis perdesinden çıkar, ışık rayı yazardan
+     geçer, altta tek ray döner. Sayılar/değerler worker'dan alındı ki iki ekran aynı kimliği taşısın. */
+  #splash {
+    position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; overflow: hidden;
+    background: #04050a; color: #fff; font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    -webkit-user-select: none; user-select: none; -webkit-app-region: drag;
+    transition: opacity .45s ease, visibility .45s ease;
+  }
+  #splash.gone { opacity: 0; visibility: hidden; pointer-events: none; }
+  #splash .bloom { position: absolute; inset: -30%; pointer-events: none; background: radial-gradient(ellipse 46% 38% at 50% 44%, rgba(229,9,20,.3) 0%, rgba(229,9,20,.07) 42%, transparent 70%), radial-gradient(ellipse 70% 55% at 50% 112%, rgba(120,12,30,.34) 0%, transparent 66%); animation: nfBloom 11s ease-in-out infinite alternate; }
+  #splash .grid { position: absolute; inset: 0; pointer-events: none; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 1px, transparent 1px 92px); -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 48%, #000 0%, transparent 78%); mask-image: radial-gradient(ellipse 60% 55% at 50% 48%, #000 0%, transparent 78%); opacity: .5; }
+  #splash .inner { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; padding: 0 6vw; }
+  #splash .mark { position: relative; }
+  #splash .word { margin: 0; font-family:'Bebas Neue','Arial Narrow',Impact,sans-serif; font-weight: 400; font-size: clamp(54px, 12.5vw, 148px); line-height: .82; letter-spacing: .004em; color: #e50914; -webkit-text-fill-color: #e50914; text-shadow: 0 0 .07em rgba(229,9,20,.5), 0 0 .215em rgba(229,9,20,.42), 0 .05em .5em rgba(229,9,20,.3), 0 .09em .9em rgba(229,9,20,.26); }
+  #splash .word u { display: inline-block; position: relative; margin: 0 .017em; font: inherit; color: inherit; text-decoration: none; animation: nfLetterIn .78s cubic-bezier(.18,.86,.24,1) both; }
+  #splash .word u.nf-idot::after { content:''; position: absolute; left: 50%; top: calc(-.0915em - max(.0385em,2px)); width: .1015em; height: .1015em; margin-left: -.0508em; border-radius: 2px; background: currentColor; }
+  #splash .word u:nth-child(1){animation-delay:.04s} #splash .word u:nth-child(2){animation-delay:.1s} #splash .word u:nth-child(3){animation-delay:.16s} #splash .word u:nth-child(4){animation-delay:.22s} #splash .word u:nth-child(5){animation-delay:.28s} #splash .word u:nth-child(6){animation-delay:.34s} #splash .word u:nth-child(7){animation-delay:.4s}
+  #splash .sweep { position: absolute; top: -14%; bottom: -14%; left: -34%; width: 28%; z-index: 3; pointer-events: none; background: linear-gradient(100deg, transparent 0%, rgba(255,122,128,.55) 38%, rgba(255,240,240,.92) 50%, rgba(255,122,128,.55) 62%, transparent 100%); filter: blur(10px); mix-blend-mode: screen; animation: nfSweep 2.5s cubic-bezier(.55,0,.45,1) infinite; }
+  #splash .rail { position: relative; width: min(320px, 62vw); height: 3px; margin-top: clamp(26px, 4.4vh, 48px); border-radius: 3px; overflow: hidden; background: rgba(255,255,255,.1); }
+  #splash .rail i { position: absolute; inset: 0 auto 0 0; width: 44%; border-radius: 3px; background: linear-gradient(90deg, transparent, #e50914 35%, #ff6b72 55%, transparent); box-shadow: 0 0 14px rgba(229,9,20,.55); animation: nfRail 1.5s cubic-bezier(.6,.05,.4,.95) infinite; }
+  #splash .hint { margin: clamp(18px, 3vh, 30px) 0 0; min-height: 1.2em; font-size: clamp(10px, 1.15vw, 12px); font-weight: 500; letter-spacing: .3em; text-transform: uppercase; text-align: center; color: rgba(255,255,255,.6); -webkit-app-region: no-drag; }
+  #splash .credit { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(20px, env(safe-area-inset-bottom)); font-size: 9.5px; font-weight: 600; letter-spacing: .44em; white-space: nowrap; color: rgba(255,255,255,.32); }
+  #splash .skip { display: block; position: absolute; bottom: max(20px, env(safe-area-inset-bottom)); right: max(18px, env(safe-area-inset-right)); padding: 9px 18px; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; background: rgba(255,255,255,.05); color: rgba(255,255,255,.72); font-size: 11px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; cursor: pointer; -webkit-app-region: no-drag; }
+  #splash .skip:hover { color: #fff; border-color: rgba(255,255,255,.34); }
+  @keyframes nfBloom { from { opacity:.62; transform:scale(.97) } to { opacity:1; transform:scale(1.05) } }
+  @keyframes nfLetterIn { 0%{opacity:0;transform:translateY(.34em) scale(1.16);filter:blur(14px)} 60%{opacity:.9;filter:blur(2px)} 100%{opacity:1;transform:none;filter:blur(0)} }
+  @keyframes nfSweep { 0%{transform:translateX(0);opacity:0} 12%{opacity:1} 88%{opacity:1} 100%{transform:translateX(480%);opacity:0} }
+  @keyframes nfRail { 0%{transform:translateX(-110%)} 100%{transform:translateX(255%)} }
+</style>
+</head>
+<body class="bg-bg-primary text-content-primary font-display">
+  <!-- Splash: worker ile birebir aynı marka intro sahnesi -->
+  <div id="splash" role="status" aria-live="polite">
+    <div class="bloom" aria-hidden="true"></div>
+    <div class="grid" aria-hidden="true"></div>
+    <div class="inner">
+      <div class="mark">
+        <h1 class="word" aria-label="NOTFLİX"><u>N</u><u>O</u><u>T</u><u>F</u><u>L</u><u class="nf-idot">İ</u><u>X</u></h1>
+        <span class="sweep" aria-hidden="true"></span>
+      </div>
+      <div class="rail" aria-hidden="true"><i></i></div>
+      <p class="hint" id="splashHint" data-i18n="splash.l1">Sunucuya bağlanılıyor…</p>
+    </div>
+    <div class="credit">RENDİR MEDİA</div>
+    <button type="button" class="skip" id="splashEnter" data-i18n="splash.skip">Atla</button>
+  </div>
+
+  <!-- Frameless window drag region + controls (top-right, modern) -->
+  <div class="win-drag"></div>
+  <div id="winControls" class="fixed right-0 top-0 flex items-center" style="z-index:1000">
+    <button id="winMin" class="win-ctl" title="Simge durumuna küçült" aria-label="Küçült">
+      <svg viewBox="0 0 12 12" width="12" height="12"><path d="M2 6h8" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
+    </button>
+    <button id="winMax" class="win-ctl" title="Ekranı kapla" aria-label="Büyüt">
+      <svg class="ico-max" viewBox="0 0 12 12" width="11" height="11"><rect x="2.5" y="2.5" width="7" height="7" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
+      <svg class="ico-restore hidden" viewBox="0 0 12 12" width="11" height="11"><rect x="2" y="3.5" width="6" height="6" stroke="currentColor" stroke-width="1.1" fill="none"/><path d="M4 3.5V2h6v6H8" stroke="currentColor" stroke-width="1.1" fill="none"/></svg>
+    </button>
+    <button id="winClose" class="win-ctl win-close" title="Kapat" aria-label="Kapat">
+      <svg viewBox="0 0 12 12" width="12" height="12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
+    </button>
+  </div>
+
+  <!-- Header (sticky) -->
+  <header class="sticky top-0 z-50 border-b border-line bg-bg-primary/85 backdrop-blur-xl">
+    <!-- Top utility bar -->
+    <div class="border-b border-white/[0.06]">
+      <div class="container-site flex h-11 items-center justify-end gap-1" style="padding-right:150px">
+        <button class="flex h-9 w-9 items-center justify-center rounded-full border border-transparent text-content-secondary transition-colors hover:border-white/10 hover:bg-white/[0.06] hover:text-white" aria-label="Ara">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        </button>
+        <a href="#/kayit" data-i18n="nav.signup" class="hidden min-[560px]:inline-flex items-center rounded-pill px-3 py-1 text-xs font-semibold text-content-secondary transition-colors hover:text-white">Kayıt Ol</a>
+        <a href="#/giris" data-i18n="nav.signin" class="inline-flex min-h-[32px] items-center rounded-pill border border-white/15 bg-white/[0.02] px-3 py-1 text-xs font-semibold text-white transition-colors hover:border-accent hover:text-accent">Giriş Yap</a>
+        <div class="relative dropdown" id="langDropdown">
+          <button class="-me-1.5 ms-1 flex min-h-[32px] items-center gap-1.5 rounded-pill border border-white/10 bg-white/[0.02] px-2.5 py-1 text-xs font-semibold text-content-secondary transition-colors hover:border-white/20 hover:bg-white/[0.06] hover:text-white" aria-label="Dil seç">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>
+            <span id="langCode">TR</span>
+            <svg class="h-3 w-3 transition-transform dd-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="absolute right-0 top-full z-50 origin-top-right pt-3 hidden dd-panel" style="width:15rem">
+            <div class="overflow-hidden rounded-2xl border border-white/10 bg-bg-elevated/95 shadow-2xl shadow-black/60 ring-1 ring-white/5 backdrop-blur-xl">
+              <div class="h-px bg-gradient-to-r from-transparent via-white/15 to-transparent"></div>
+              <div class="max-h-[70vh] overflow-y-auto py-2" data-lang-grid></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Main nav row -->
+    <div class="container-site flex h-16 items-center gap-6">
+      <a href="#/" class="brand-word flex shrink-0 items-center text-[26px] leading-none" style="color:#e50914; text-shadow:0 0 .18em rgba(229,9,20,.45)">NOTFLİX</a>
+      <nav class="hidden items-center gap-0.5 lg:flex" id="mainNav">
+        <a href="#/katalog/filmler" class="group relative px-3.5 py-2 text-sm font-medium transition-colors duration-200 text-content-secondary hover:text-white"><span data-i18n="nav.films">Filmler</span><span class="pointer-events-none absolute inset-x-2.5 bottom-1 h-px bg-gradient-to-r from-transparent via-accent to-transparent transition-transform duration-300 origin-center scale-x-0 group-hover:scale-x-100"></span></a>
+        <a href="#/katalog/diziler" class="group relative px-3.5 py-2 text-sm font-medium transition-colors duration-200 text-content-secondary hover:text-white"><span data-i18n="nav.series">Diziler</span><span class="pointer-events-none absolute inset-x-2.5 bottom-1 h-px bg-gradient-to-r from-transparent via-accent to-transparent transition-transform duration-300 origin-center scale-x-0 group-hover:scale-x-100"></span></a>
+        <a href="#/katalog/animes" class="group relative px-3.5 py-2 text-sm font-medium transition-colors duration-200 text-content-secondary hover:text-white"><span data-i18n="nav.anime">Animeler</span><span class="pointer-events-none absolute inset-x-2.5 bottom-1 h-px bg-gradient-to-r from-transparent via-accent to-transparent transition-transform duration-300 origin-center scale-x-0 group-hover:scale-x-100"></span></a>
+        <a href="#/kesfet" class="group relative px-3.5 py-2 text-sm font-medium transition-colors duration-200 text-content-secondary hover:text-white"><span data-i18n="nav.discover">Keşfet</span><span class="pointer-events-none absolute inset-x-2.5 bottom-1 h-px bg-gradient-to-r from-transparent via-accent to-transparent transition-transform duration-300 origin-center scale-x-0 group-hover:scale-x-100"></span></a>
+        <a href="#/kutuphane" class="group relative px-3.5 py-2 text-sm font-medium transition-colors duration-200 text-content-secondary hover:text-white"><span data-i18n="nav.library">Kütüphane</span><span class="pointer-events-none absolute inset-x-2.5 bottom-1 h-px bg-gradient-to-r from-transparent via-accent to-transparent transition-transform duration-300 origin-center scale-x-0 group-hover:scale-x-100"></span></a>
+        <a href="#/canli-tv" class="group relative flex items-center gap-1 rounded-full border border-red-500 px-3 py-1 text-sm font-medium transition-colors duration-200 text-content-secondary hover:text-white">
+          <span class="relative flex h-2 w-2 shrink-0"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-red-600"></span></span>
+          <span data-i18n="nav.live">Canlı TV</span>
+        </a>
+        <div class="relative dropdown" id="turlerDropdown">
+          <button class="group relative flex items-center gap-1 px-3.5 py-2 text-sm font-medium text-content-secondary transition-colors duration-200 hover:text-white"><span class="dd-label">Türler</span> <svg class="h-3 w-3 transition-transform dd-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg><span class="pointer-events-none absolute inset-x-2.5 bottom-1 h-px bg-gradient-to-r from-transparent via-accent to-transparent transition-transform duration-300 origin-center scale-x-0 group-hover:scale-x-100"></span></button>
+          <div class="absolute right-0 top-full z-50 origin-top-right pt-3 hidden dd-panel" style="width:min(42rem,calc(100vw - 3rem))">
+            <div class="overflow-hidden rounded-2xl border border-white/10 bg-bg-elevated/95 shadow-2xl shadow-black/60 ring-1 ring-white/5 backdrop-blur-xl">
+              <div class="h-px bg-gradient-to-r from-transparent via-white/15 to-transparent"></div>
+              <div class="flex items-center justify-between gap-2 px-4 pb-2.5 pt-3">
+                <div class="flex items-center gap-2"><svg class="h-4 w-4 text-content-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-muted">Kategoriye göz at</span></div>
+                <span class="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-content-muted ring-1 ring-inset ring-white/10" data-count>30</span>
+              </div>
+              <div class="grid grid-cols-3 gap-0.5 overflow-y-auto px-2 pb-2" style="max-height:min(84vh,44rem)" data-dd-grid></div>
+            </div>
+          </div>
+        </div>
+      </nav>
+      <div class="ms-auto flex items-center gap-2">
+        <button class="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-content-secondary transition-colors hover:bg-white/[0.08] hover:text-white" aria-label="Bildirimler">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+        </button>
+        <button class="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-content-secondary transition-colors hover:bg-white/[0.08] hover:text-white" aria-label="Profil">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Everything below built by renderer -->
+  <main id="app"></main>
+
+  <!-- Footer -->
+  <footer class="mt-section border-t border-line bg-bg-secondary">
+    <div class="container-site grid grid-cols-2 gap-x-6 gap-y-10 py-14 md:grid-cols-4 md:gap-10">
+      <div class="col-span-2 md:col-span-1">
+        <a href="#/" class="brand-word inline-flex items-center text-[28px] leading-none" style="color:#e50914; text-shadow:0 0 .18em rgba(229,9,20,.45)">NOTFLİX</a>
+        <p class="mt-4 max-w-xs text-sm leading-relaxed text-content-secondary">NOTFLİX, film ve dizi tutkunlarını tek çatı altında buluşturur. Güncel katalog, pratik filtreleme ve kesintisiz oynatma ile yeni yapımları keşfet, favorilerini kaydet ve Full HD keyfini çıkar.</p>
+      </div>
+      <div>
+        <h3 class="mb-4 text-xs font-bold uppercase tracking-widest text-content-muted" data-i18n="footer.discover">Keşfet</h3>
+        <ul class="space-y-1.5 text-sm">
+          <li><a href="#/kesfet-sihirbazi" data-i18n="footer.wizard" class="inline-block py-1 text-content-secondary transition hover:text-white">Keşfet Sihirbazı</a></li>
+          <li><a href="#/katalog/filmler" data-i18n="nav.films" class="inline-block py-1 text-content-secondary transition hover:text-white">Filmler</a></li>
+          <li><a href="#/katalog/diziler" data-i18n="nav.series" class="inline-block py-1 text-content-secondary transition hover:text-white">Diziler</a></li>
+          <li><a href="#/trend" data-i18n="footer.trending" class="inline-block py-1 text-content-secondary transition hover:text-white">Trend İçerikler</a></li>
+          <li><a href="#/katalog/animes" data-i18n="nav.anime" class="inline-block py-1 text-content-secondary transition hover:text-white">Animeler</a></li>
+          <li><a href="#/koleksiyonlar" data-i18n="footer.collections" class="inline-block py-1 text-content-secondary transition hover:text-white">Koleksiyonlar</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="mb-4 text-xs font-bold uppercase tracking-widest text-content-muted" data-i18n="nav.genres">Türler</h3>
+        <ul class="space-y-1.5 text-sm" data-footer-genres></ul>
+      </div>
+      <div>
+        <h3 class="mb-4 text-xs font-bold uppercase tracking-widest text-content-muted" data-i18n="footer.corporate">Kurumsal</h3>
+        <ul class="space-y-1.5 text-sm">
+          <li><a href="#/gizlilik" data-i18n="footer.privacy" class="inline-block py-1 text-content-secondary transition hover:text-white">Gizlilik Politikası</a></li>
+          <li><a href="#/kullanim" data-i18n="footer.terms" class="inline-block py-1 text-content-secondary transition hover:text-white">Kullanım Koşulları</a></li>
+          <li><a href="#/dmca" data-i18n="footer.dmca" class="inline-block py-1 text-content-secondary transition hover:text-white">DMCA / Telif Hakkı</a></li>
+          <li><a href="#/iletisim" data-i18n="footer.contact" class="inline-block py-1 text-content-secondary transition hover:text-white">İletişim</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="border-t border-line">
+      <div class="container-site flex flex-col items-center justify-between gap-3 py-6 text-xs text-content-muted sm:flex-row">
+        <p data-i18n="footer.copyright">© 2027 NOTFLİX. Tüm hakları saklıdır.</p>
+        <p data-i18n="footer.note">Bu platform içeriği barındırmaz; üçüncü taraf kaynaklara bağlantı verir.</p>
+      </div>
+    </div>
+  </footer>
+
+  <div id="themeChip" role="button" tabindex="0" title="Tema değiştir">
+    <span class="dot"></span><span class="lbl">filmmodu (kırmızı)</span>
+  </div>
+
+  <script>
+    (function () {
+      const c = (window.notflix && window.notflix.content) || {};
+
+      // Platformlar sekmesi kaldırıldı. Türler dropdown'u VOD içeriğinden src/renderer.js içinde doldurulur.
+
+      // Tüm dropdown'lar: hover + click
+      document.querySelectorAll('.dropdown').forEach(dd => {
+        const btn = dd.querySelector('button');
+        const panel = dd.querySelector('.dd-panel');
+        const caret = dd.querySelector('.dd-caret');
+        if (!btn || !panel) return;
+        const open = () => { panel.classList.remove('hidden'); if (caret) caret.style.transform = 'rotate(180deg)'; };
+        const close = () => { panel.classList.add('hidden'); if (caret) caret.style.transform = ''; };
+        btn.addEventListener('mouseenter', open);
+        dd.addEventListener('mouseleave', close);
+        btn.addEventListener('click', (e) => { e.preventDefault(); panel.classList.contains('hidden') ? open() : close(); });
+      });
+
+      // Pencere kontrolleri
+      const win = window.notflix && window.notflix.win;
+      if (win) {
+        document.getElementById('winMin')?.addEventListener('click', win.minimize);
+        document.getElementById('winMax')?.addEventListener('click', win.toggleMax);
+        document.getElementById('winClose')?.addEventListener('click', win.close);
+        win.onState && win.onState(state => {
+          const max = document.querySelector('#winMax .ico-max');
+          const restore = document.querySelector('#winMax .ico-restore');
+          if (max && restore) {
+            max.classList.toggle('hidden', !!state.maximized);
+            restore.classList.toggle('hidden', !state.maximized);
+          }
+        });
+      }
+
+      // Splash: sahne sürücüsü renderer.js içinde (dil + ritim oradan yönetilir).
+    })();
+  </script>
+  <script src="assets/js/hls.min.js"></script>
+  <script src="src/renderer.js"></script>
+</body>
+</html>

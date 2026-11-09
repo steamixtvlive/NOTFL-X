@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NOTFLİX</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; }
+    #filmmodu-frame { display: block; width: 100%; height: 100%; border: none; }
+
+    /* Sekme / içerik geçişlerinde yükleniyor halkası: iframe gizliyken görünür, ready ile kalkar. */
+    #nfLoader { position: fixed; inset: 0; z-index: 500; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: #0a0a0a; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .2s ease, visibility .2s ease; }
+    #nfLoader.on { opacity: 1; visibility: visible; }
+    #nfLoader .nf-spin { position: relative; width: 62px; height: 62px; }
+    #nfLoader .nf-spin::before, #nfLoader .nf-spin::after { content: ''; position: absolute; inset: 0; border-radius: 999px; }
+    #nfLoader .nf-spin::before { border: 3px solid rgba(229,9,20,.16); }
+    #nfLoader .nf-spin::after { border: 3px solid transparent; border-top-color: #e50914; border-right-color: rgba(229,9,20,.55); animation: nfSpin .85s cubic-bezier(.55,.15,.45,.85) infinite; filter: drop-shadow(0 0 6px rgba(229,9,20,.55)); }
+    /* Yükleme ekranındaki düz yazı yerine sol üstteki bükük marka logosu kullanılır. */
+    #nfLoader .nf-logo { width: min(230px, 52vw); filter: drop-shadow(0 0 .05em rgba(229,9,20,.55)) drop-shadow(0 .03em .16em rgba(229,9,20,.42)); }
+    #nfLoader .nf-logo svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #nfLoader .nf-lhint { font-family: 'Segoe UI', Roboto, Arial, sans-serif; font-size: 11px; font-weight: 600; letter-spacing: .28em; text-transform: uppercase; color: rgba(255,255,255,.5); }
+    @keyframes nfSpin { to { transform: rotate(360deg); } }
+
+    /* Çerçevesiz pencere: üst sürükleme şeridi ince (5px) — sitenin dil/arama düğmeleri (~22px merkez) örtülmez, tıklanabilir kalır. */
+    .win-drag { position: fixed; top: 0; left: 0; right: 138px; height: 5px; z-index: 1000; -webkit-app-region: drag; }
+    #winControls { position: fixed; right: 0; top: 0; display: flex; align-items: center; z-index: 1000; -webkit-app-region: no-drag; }
+    .win-ctl { width: 46px; height: 34px; display: inline-flex; align-items: center; justify-content: center; color: #cbd0d8; background: rgba(10,10,10,.55); border: 0; cursor: pointer; transition: background .15s ease, color .15s ease; }
+    .win-ctl:hover { background: rgba(255,255,255,.12); color: #fff; }
+    .win-close:hover { background: #e50914; color: #fff; }
+
+    /* Marka fontu: worker splash'indeki Bebas Neue */
+    @font-face { font-family:'Bebas Neue'; font-style:normal; font-weight:400; font-display:swap; src:url('assets/fonts/BebasNeue.woff2') format('woff2'); }
+    /* Splash: worker'la birebir aynı sahne */
+    #splash {
+      position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; overflow: hidden;
+      background: #04050a; color: #fff; font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      -webkit-user-select: none; user-select: none; -webkit-app-region: drag;
+      transition: opacity .45s ease, visibility .45s ease;
+    }
+    #splash.gone { opacity: 0; visibility: hidden; pointer-events: none; }
+    #splash .bloom { position: absolute; inset: -30%; pointer-events: none; background: radial-gradient(ellipse 46% 38% at 50% 44%, rgba(229,9,20,.3) 0%, rgba(229,9,20,.07) 42%, transparent 70%), radial-gradient(ellipse 70% 55% at 50% 112%, rgba(120,12,30,.34) 0%, transparent 66%); animation: nfBloom 11s ease-in-out infinite alternate; }
+    #splash .grid { position: absolute; inset: 0; pointer-events: none; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 1px, transparent 1px 92px); -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 48%, #000 0%, transparent 78%); mask-image: radial-gradient(ellipse 60% 55% at 50% 48%, #000 0%, transparent 78%); opacity: .5; }
+    #splash .inner { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; padding: 0 6vw; }
+    #splash .mark { position: relative; }
+    /* Splash markası da sol üstteki logo gibi bükük yay üzerinde; düz marka fontu kullanılmaz. */
+    #splash .word { margin: 0; width: min(78vw, 900px); }
+    #splash .word svg { display: block; width: 100%; height: auto; overflow: visible; filter: drop-shadow(0 0 .035em rgba(229,9,20,.55)) drop-shadow(0 0 .12em rgba(229,9,20,.42)) drop-shadow(0 .05em .3em rgba(229,9,20,.3)); animation: nfLogoIn .9s cubic-bezier(.18,.86,.24,1) both; }
+    #splash .sweep { position: absolute; top: -14%; bottom: -14%; left: -34%; width: 28%; z-index: 3; pointer-events: none; background: linear-gradient(100deg, transparent 0%, rgba(255,122,128,.55) 38%, rgba(255,240,240,.92) 50%, rgba(255,122,128,.55) 62%, transparent 100%); filter: blur(10px); mix-blend-mode: screen; animation: nfSweep 2.5s cubic-bezier(.55,0,.45,1) infinite; }
+    #splash .rail { position: relative; width: min(320px, 62vw); height: 3px; margin-top: clamp(26px, 4.4vh, 48px); border-radius: 3px; overflow: hidden; background: rgba(255,255,255,.1); }
+    #splash .rail i { position: absolute; inset: 0 auto 0 0; width: 44%; border-radius: 3px; background: linear-gradient(90deg, transparent, #e50914 35%, #ff6b72 55%, transparent); box-shadow: 0 0 14px rgba(229,9,20,.55); animation: nfRail 1.5s cubic-bezier(.6,.05,.4,.95) infinite; }
+    #splash .hint { margin: clamp(18px, 3vh, 30px) 0 0; min-height: 1.2em; font-size: clamp(10px, 1.15vw, 12px); font-weight: 500; letter-spacing: .3em; text-transform: uppercase; text-align: center; color: rgba(255,255,255,.6); -webkit-app-region: no-drag; }
+    #splash .credit { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(20px, env(safe-area-inset-bottom)); font-size: 9.5px; font-weight: 600; letter-spacing: .44em; white-space: nowrap; color: rgba(255,255,255,.32); }
+    #splash .skip { display: block; position: absolute; bottom: max(20px, env(safe-area-inset-bottom)); right: max(18px, env(safe-area-inset-right)); padding: 9px 18px; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; background: rgba(255,255,255,.05); color: rgba(255,255,255,.72); font-size: 11px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; cursor: pointer; -webkit-app-region: no-drag; }
+    #splash .skip:hover { color: #fff; border-color: rgba(255,255,255,.34); }
+    @keyframes nfBloom { from { opacity:.62; transform:scale(.97) } to { opacity:1; transform:scale(1.05) } }
+    @keyframes nfLogoIn { 0%{opacity:0;transform:translateY(.18em) scale(1.12)} 60%{opacity:.92} 100%{opacity:1;transform:none} }
+    @keyframes nfSweep { 0%{transform:translateX(0);opacity:0} 12%{opacity:1} 88%{opacity:1} 100%{transform:translateX(480%);opacity:0} }
+    @keyframes nfRail { 0%{transform:translateX(-110%)} 100%{transform:translateX(255%)} }
+
+    /* Bizim Giriş / İletişim modalları (filmmodu iframe'inin önünde) */
+    #nfModal { position: fixed; inset: 0; z-index: 9000; display: none; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 16px; background: rgba(4,5,10,.72); backdrop-filter: blur(6px); font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+    #nfModal.open { display: flex; }
+    /* Kart her zaman sayfanın ortasında; ekran kısa kalırsa üstten kırpılmadan kaydırılabilir. */
+    #nfModal > .nf-card { margin: auto; }
+    .nf-card { position: relative; width: 100%; max-width: 480px; border: 1px solid rgba(255,255,255,.1); border-radius: 18px; background: #141414; color: #fff; padding: 30px 28px; box-shadow: 0 24px 70px rgba(0,0,0,.6); }
+    .nf-x { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 9px; background: transparent; color: #cbd0d8; cursor: pointer; }
+    .nf-x:hover { background: rgba(255,255,255,.1); color: #fff; }
+    .nf-ico { width: 64px; height: 64px; margin: 0 auto 18px; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(229,9,20,.15); box-shadow: inset 0 0 0 1px rgba(229,9,20,.3); color: #e50914; }
+    .nf-h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.02em; text-align: center; }
+    .nf-sub { margin: 12px 0 0; font-size: 14px; line-height: 1.6; color: #b6bcc6; text-align: center; }
+    .nf-btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; margin-top: 22px; padding: 12px 18px; border: 0; border-radius: 11px; background: #e50914; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; transition: background .15s; }
+    .nf-btn:hover { background: #f40612; }
+    .nf-btn:disabled { opacity: .6; cursor: default; }
+    .nf-form { margin-top: 22px; display: flex; flex-direction: column; gap: 15px; }
+    .nf-form label { display: block; font-size: 13px; font-weight: 600; color: #b6bcc6; margin-bottom: 6px; }
+    .nf-field { width: 100%; padding: 11px 13px; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; background: #1a1a1a; color: #fff; font-size: 14px; outline: none; transition: border-color .15s, box-shadow .15s; }
+    .nf-field:focus { border-color: rgba(229,9,20,.6); box-shadow: inset 0 0 0 1px rgba(229,9,20,.4); }
+    textarea.nf-field { resize: vertical; min-height: 110px; }
+    .nf-msg { margin: 4px 0 0; font-size: 13px; text-align: center; min-height: 1em; }
+
+    /* Bağış paneli: tek ekrana sığan kompakt kart (kaydırma gerekmez) */
+    .nf-card.nf-mid { max-width: 620px; padding: 22px 24px 20px; }
+    .nf-bagis-head { display: flex; align-items: center; gap: 13px; }
+    .nf-bagis-head .nf-ico { width: 44px; height: 44px; margin: 0; flex: 0 0 auto; }
+    .nf-bagis-head .nf-h1 { font-size: 20px; line-height: 1.2; text-align: left; }
+    .nf-sub-left { margin: 5px 0 0; font-size: 12.5px; line-height: 1.45; text-align: left; }
+    .nf-vol { margin: 12px 0 0; padding: 9px 12px; border-radius: 10px; border: 1px solid rgba(229,9,20,.4); border-left: 3px solid #e50914; background: rgba(229,9,20,.1); font-size: 12.5px; line-height: 1.45; color: #ffd7da; text-align: center; }
+    .nf-vol strong { color: #fff; font-weight: 800; }
+    .nf-form-tight { margin-top: 13px; gap: 11px; }
+    .nf-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+    .nf-form-tight label { margin-bottom: 4px; font-size: 12px; }
+    .nf-form-tight .nf-field { padding: 9px 11px; font-size: 13px; }
+    #nfBNote { min-height: 50px; resize: none; }
+    .nf-form-tight .nf-btn { margin-top: 2px; padding: 10px 16px; }
+    .nf-form-tight .nf-msg { margin: 0; font-size: 12px; }
+    .nf-letter-sm { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+    .nf-letter-sm p { margin: 0; font-size: 12px; line-height: 1.5; color: #c4cad3; text-align: left; }
+
+    /* Canlı TV paneli: geniş kart + tam ekran oynatıcı */
+    .nf-card.nf-wide { max-width: 1100px; padding: 22px 22px 24px; }
+    .nf-live-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+    .nf-live-head h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+    .nf-live-head p { margin: 4px 0 0; font-size: 13px; color: #b6bcc6; max-width: 60ch; }
+    .nf-fs-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; background: #000; color: #b6bcc6; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s; }
+    .nf-fs-btn:hover { border-color: rgba(229,9,20,.5); color: #fff; }
+    #nfCanliBox { position: relative; overflow: hidden; border-radius: 14px; border: 1px solid rgba(255,255,255,.1); background: #000; height: 68vh; }
+    #nfCanliBox iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; background: #0a0a0a; }
+    #nfCanliCover { position: absolute; inset: 0; z-index: 10; background: #000; display: flex; align-items: center; justify-content: center; transition: opacity .5s; }
+    #nfCanliCover .nf-logo { width: min(280px, 52vw); filter: drop-shadow(0 0 .05em rgba(229,9,20,.55)) drop-shadow(0 .03em .16em rgba(229,9,20,.42)); }
+    #nfCanliCover .nf-logo svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #nfCanliBox.canli-full { position: fixed !important; inset: 0 !important; height: 100vh !important; width: 100vw !important; z-index: 2147483000 !important; border: 0 !important; border-radius: 0 !important; }
+    /* Tam ekranda sol kırpma yok: kanal adları / yayın bilgisi solda kesilmeden tam görünür. */
+    #nfCanliBox.canli-full iframe { left: 0 !important; width: 100vw !important; }
+    /* Tam ekrandan çıkış: küçültme (restore) simgesi + ESC ipucu, sağ üstte kalıcı. */
+    #nfCanliExit { position: absolute; top: 14px; right: 16px; z-index: 30; display: none; align-items: center; gap: 9px; padding: 9px 15px; border: 1px solid rgba(255,255,255,.22); border-radius: 999px; background: rgba(0,0,0,.62); color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; backdrop-filter: blur(5px); transition: background .15s, border-color .15s; }
+    #nfCanliExit:hover { background: rgba(229,9,20,.8); border-color: rgba(229,9,20,.9); }
+    #nfCanliExit kbd { font-family: inherit; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 2px 6px; border-radius: 5px; background: rgba(255,255,255,.16); }
+    #nfCanliBox.canli-full #nfCanliExit { display: inline-flex; }
+
+    /* Güncelleme bildirimi: sağ altta, iframe'in ve modalların üstünde. */
+    #nfUpdate { position: fixed; right: 18px; bottom: 18px; z-index: 8900; display: none; width: min(370px, calc(100vw - 36px)); padding: 16px 18px 15px; border: 1px solid rgba(229,9,20,.5); border-radius: 14px; background: #141414; color: #fff; box-shadow: 0 18px 55px rgba(0,0,0,.65); font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+    #nfUpdate.on { display: block; }
+    #nfUpdate .nf-up-x { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 7px; background: transparent; color: #cbd0d8; font-size: 20px; line-height: 1; cursor: pointer; }
+    #nfUpdate .nf-up-x:hover { background: rgba(255,255,255,.1); color: #fff; }
+    #nfUpdate h3 { margin: 0 26px 6px 0; font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
+    #nfUpdate p { margin: 0; font-size: 12.5px; line-height: 1.55; color: #b6bcc6; }
+    #nfUpdate .nf-up-actions { display: flex; gap: 9px; margin-top: 13px; }
+    #nfUpdate .nf-up-btn { flex: 1; padding: 9px 14px; border: 0; border-radius: 9px; background: #e50914; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer; transition: background .15s; }
+    #nfUpdate .nf-up-btn:hover { background: #f40612; }
+    #nfUpdate .nf-up-later { padding: 9px 14px; border: 1px solid rgba(255,255,255,.14); border-radius: 9px; background: transparent; color: #b6bcc6; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+    #nfUpdate .nf-up-later:hover { border-color: rgba(255,255,255,.3); color: #fff; }
+  </style>
+</head>
+<body>
+  <iframe
+    id="filmmodu-frame"
+    src="https://filmmodu.news/"
+    style="opacity:0"
+    allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+    allowfullscreen>
+  </iframe>
+
+  <!-- Geçiş yükleniyor göstergesi -->
+  <div id="nfLoader" aria-hidden="true">
+    <div class="nf-spin"></div>
+    <div class="nf-logo" role="img" aria-label="NOTFLİX">
+      <svg viewBox="0 0 340 110">
+        <defs><path id="nfArcLoader" d="M16 88 Q170 64 324 88"/></defs>
+        <text font-family="'Bebas Neue','Arial Narrow',Impact,sans-serif" font-size="62" letter-spacing="3" fill="#e50914"><textPath href="#nfArcLoader" startOffset="50%" text-anchor="middle">NOTFLİX</textPath></text>
+      </svg>
+    </div>
+    <div class="nf-lhint">Yükleniyor</div>
+  </div>
+
+  <div class="win-drag"></div>
+  <div id="winControls">
+    <button id="winMin" class="win-ctl" title="Simge durumuna küçült" aria-label="Küçült">
+      <svg viewBox="0 0 12 12" width="12" height="12"><path d="M2 6h8" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
+    </button>
+    <button id="winMax" class="win-ctl" title="Ekranı kapla" aria-label="Büyüt">
+      <svg viewBox="0 0 12 12" width="11" height="11"><rect x="2.5" y="2.5" width="7" height="7" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
+    </button>
+    <button id="winClose" class="win-ctl win-close" title="Kapat" aria-label="Kapat">
+      <svg viewBox="0 0 12 12" width="12" height="12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
+    </button>
+  </div>
+
+  <!-- Bizim Giriş / İletişim panelleri -->
+  <div id="nfModal" role="dialog" aria-modal="true">
+    <div class="nf-card" id="nfCard">
+      <button type="button" class="nf-x" id="nfClose" aria-label="Kapat">
+        <svg viewBox="0 0 12 12" width="13" height="13"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
+      </button>
+
+      <div id="nfGiris" hidden>
+        <div class="nf-ico">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+        </div>
+        <h1 class="nf-h1">Yakında aktif olacak</h1>
+        <p class="nf-sub">Giriş ve hesap sistemi hazır olduğunda burada olacak. Şimdiden keyifli seyirler!</p>
+        <button type="button" class="nf-btn" id="nfGirisBack">Ana sayfaya dön</button>
+      </div>
+
+      <div id="nfIletisim" hidden>
+        <h1 class="nf-h1" style="text-align:left">İletişim</h1>
+        <p class="nf-sub" style="text-align:left">Sorun, öneri, hata ya da şikayetini bize yaz. En geç 24 saat içinde dönüş yapıyoruz.</p>
+        <form id="nfContactForm" class="nf-form" autocomplete="on">
+          <div><label for="nfName">Ad Soyad</label><input id="nfName" name="name" type="text" required class="nf-field"></div>
+          <div><label for="nfEmail">E-posta (sana dönüş yapabilmemiz için)</label><input id="nfEmail" name="email" type="email" required class="nf-field"></div>
+          <div><label for="nfTopic">Konu</label>
+            <select id="nfTopic" name="topic" class="nf-field">
+              <option>Sorun</option><option>Öneri</option><option>Hata Bildirimi</option><option>Şikayet</option>
+            </select>
+          </div>
+          <div><label for="nfMessage">Mesajın</label><textarea id="nfMessage" name="message" rows="5" required class="nf-field"></textarea></div>
+          <button type="submit" class="nf-btn" id="nfSend" style="margin-top:6px">Mesajı Gönder</button>
+          <p class="nf-msg" id="nfContactMsg"></p>
+        </form>
+      </div>
+
+      <div id="nfBagis" hidden>
+        <div class="nf-bagis-head">
+          <div class="nf-ico">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7.5-4.6-9.5-9C1 8.5 3 5 6.5 5c2 0 3.5 1.5 5.5 3.5C14 6.5 15.5 5 17.5 5 21 5 23 8.5 21.5 12c-2 4.4-9.5 9-9.5 9z"/></svg>
+          </div>
+          <div>
+            <h1 class="nf-h1">Bağış Yap</h1>
+            <p class="nf-sub nf-sub-left">NOTFLİX gönüllülük esasıyla yürür; desteğiniz doğrudan sunucu ve altyapı giderlerine gider.</p>
+          </div>
+        </div>
+        <p class="nf-vol"><strong>Bu platform tamamen gönüllülük esasına dayanır. Bağış yapılması zorunlu değildir.</strong></p>
+        <div class="nf-letter nf-letter-sm">
+          <p>NOTFLİX; kâr amacı gütmeyen, gönüllülük esasına dayanan bağımsız bir platform projesidir. Amacımız modern, hızlı ve kesintisiz içerik deneyimini tamamen ücretsiz sunmaktır.</p>
+          <p>Yüksek çözünürlüklü yayın altyapısını beğendiyseniz ve hizmetten memnunsanız gönüllü bağışta bulunabilirsiniz; her destek doğrudan sistem kalitesine ve sunucu kapasitesine aktarılır. Teşekkür ederiz.</p>
+        </div>
+        <form id="nfBagisForm" class="nf-form nf-form-tight" autocomplete="on">
+          <div class="nf-grid2">
+            <div><label for="nfBName">Ad Soyad</label><input id="nfBName" name="name" type="text" required class="nf-field"></div>
+            <div><label for="nfBEmail">E-posta</label><input id="nfBEmail" name="email" type="email" required class="nf-field"></div>
+          </div>
+          <div><label for="nfAmount">Bağış miktarı</label>
+            <select id="nfAmount" name="amount" class="nf-field">
+              <option value="50">50 TL</option>
+              <option value="100">100 TL</option>
+              <option value="250">250 TL</option>
+              <option value="500">500 TL</option>
+              <option value="1000">1.000 TL</option>
+              <option value="2500">2.500 TL</option>
+              <option value="5000">5.000 TL</option>
+              <option value="manual">Manuel / gönüllü tutar</option>
+            </select>
+          </div>
+          <div id="nfManualWrap" hidden><label for="nfManualAmount">Tutar (0 – 5000 TL)</label><input id="nfManualAmount" name="manual" type="number" min="0" max="5000" step="1" class="nf-field" placeholder="Örn. 750"></div>
+          <div><label for="nfBNote">Mesajın (isteğe bağlı)</label><textarea id="nfBNote" name="note" rows="2" class="nf-field"></textarea></div>
+          <button type="submit" class="nf-btn" id="nfBagisSend">Bağış Yap</button>
+          <p class="nf-msg" id="nfBagisMsg"></p>
+        </form>
+      </div>
+
+      <div id="nfCanli" hidden>
+        <div class="nf-live-head">
+          <div>
+            <h1>Canlı TV</h1>
+            <p>Türkçe kanallar A–Z. Yalnızca kanal seçimi yapılabilir; başka alana erişilmez.</p>
+          </div>
+          <button type="button" class="nf-fs-btn" id="nfCanliFs">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3"/></svg>
+            <span>Tam ekran</span>
+          </button>
+        </div>
+        <div id="nfCanliBox">
+          <iframe id="nfCanliFrame" title="Canlı TV" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" referrerpolicy="no-referrer"></iframe>
+          <div id="nfCanliCover">
+            <div class="nf-logo" role="img" aria-label="NOTFLİX">
+              <svg viewBox="0 0 340 110">
+                <defs><path id="nfArcCover" d="M16 88 Q170 64 324 88"/></defs>
+                <text font-family="'Bebas Neue','Arial Narrow',Impact,sans-serif" font-size="62" letter-spacing="3" fill="#e50914"><textPath href="#nfArcCover" startOffset="50%" text-anchor="middle">NOTFLİX</textPath></text>
+              </svg>
+            </div>
+          </div>
+          <button type="button" id="nfCanliExit" title="Tam ekrandan çık (ESC)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3v3a2 2 0 0 1-2 2H4m16 0h-3a2 2 0 0 1-2-2V3M4 16h3a2 2 0 0 1 2 2v3m6 0v-3a2 2 0 0 1 2-2h3"/></svg>
+            <span>Küçült</span>
+            <kbd>ESC</kbd>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Yeni sürüm bildirimi -->
+  <div id="nfUpdate" role="status" aria-live="polite">
+    <button type="button" class="nf-up-x" id="nfUpClose" aria-label="Kapat">×</button>
+    <h3 id="nfUpTitle">Yeni sürüm hazır</h3>
+    <p id="nfUpText"></p>
+    <div class="nf-up-actions">
+      <button type="button" class="nf-up-btn" id="nfUpOpen">İndir</button>
+      <button type="button" class="nf-up-later" id="nfUpLater">Daha sonra</button>
+    </div>
+  </div>
+
+  <!-- Splash: worker ile birebir aynı marka intro sahnesi -->
+  <div id="splash" role="status" aria-live="polite">
+    <div class="bloom" aria-hidden="true"></div>
+    <div class="grid" aria-hidden="true"></div>
+    <div class="inner">
+      <div class="mark">
+        <div class="word" role="img" aria-label="NOTFLİX">
+          <svg viewBox="0 0 340 110">
+            <defs><path id="nfArcSplash" d="M16 88 Q170 64 324 88"/></defs>
+            <text font-family="'Bebas Neue','Arial Narrow',Impact,sans-serif" font-size="62" letter-spacing="3" fill="#e50914"><textPath href="#nfArcSplash" startOffset="50%" text-anchor="middle">NOTFLİX</textPath></text>
+          </svg>
+        </div>
+        <span class="sweep" aria-hidden="true"></span>
+      </div>
+      <div class="rail" aria-hidden="true"><i></i></div>
+      <p class="hint" id="splashHint">Sunucuya bağlanılıyor…</p>
+    </div>
+    <div class="credit">RENDİR MEDİA</div>
+    <button type="button" class="skip" id="splashEnter">Atla</button>
+  </div>
+
+  <script>
+    // Pencere kontrolleri
+    const W = window.notflix && window.notflix.win;
+    if (W) {
+      document.getElementById('winMin').addEventListener('click', () => W.minimize());
+      document.getElementById('winMax').addEventListener('click', () => W.toggleMax());
+      document.getElementById('winClose').addEventListener('click', () => W.close());
+    }
+    // Splash sürücüsü: ana uygulamayla aynı ritüel (4 satır, 2.6s aralık, 10.4s sonra kalkar)
+    (function () {
+      const sp = document.getElementById('splash');
+      const hint = document.getElementById('splashHint');
+      const enter = document.getElementById('splashEnter');
+      const LINES = ['Sunucuya bağlanılıyor…', 'Katalog hazırlanıyor…', 'Yayın çizgileri denetleniyor…', 'Bağlanıldı'];
+      let done = false; let i = 0;
+      const hide = () => { if (done) return; done = true; clearInterval(timer); sp.classList.add('gone'); setTimeout(() => sp.remove(), 500); };
+      enter.addEventListener('click', hide);
+      const timer = setInterval(() => { i++; if (i < LINES.length) hint.textContent = LINES[i]; else clearInterval(timer); }, 2600);
+      setTimeout(hide, 10400);
+    })();
+
+    // iframe flaş kontrolü: marka hazır olana dek gizli kal, her tam sayfa geçişinde anında tekrar gizle.
+    (function () {
+      const fr = document.getElementById('filmmodu-frame');
+      const loader = document.getElementById('nfLoader');
+      const reveal = () => { fr.dataset.nfReady = '1'; fr.style.opacity = '1'; loader.classList.remove('on'); };
+      const hide = () => { fr.dataset.nfReady = '0'; fr.style.opacity = '0'; loader.classList.add('on'); };
+      loader.classList.add('on'); // ilk açılışta da halka dönsün
+      window.addEventListener('message', e => {
+        const d = e.data;
+        if (!d) return;
+        if (d.nf === 'ready') reveal();
+        else if (d.nf === 'hide') hide();
+      });
+      fr.addEventListener('load', () => { if (fr.dataset.nfReady !== '1') hide(); }); // ready işaretli değilse gizli tut
+      setTimeout(reveal, 6000); // emniyet: enjeksiyon gelmese de görünür olsun
+    })();
+
+    // Giriş / İletişim / Premium / Canlı TV modal sürücüsü — filmmodu iframe'inden mesajla açılır.
+    (function () {
+      const modal = document.getElementById('nfModal');
+      const card = document.getElementById('nfCard');
+      const panels = {
+        giris: document.getElementById('nfGiris'),
+        iletisim: document.getElementById('nfIletisim'),
+        bagis: document.getElementById('nfBagis'),
+        canli: document.getElementById('nfCanli')
+      };
+      const canliBox = document.getElementById('nfCanliBox');
+      const canliFrame = document.getElementById('nfCanliFrame');
+      const canliCover = document.getElementById('nfCanliCover');
+      const CANLI_SRC = 'http://131.123.43.89/#/channels';
+      let canliLoaded = false;
+      let canliFs = false;
+
+      const setCanliFs = on => {
+        canliFs = on;
+        canliBox.classList.toggle('canli-full', on);
+        if (W) W.fullscreen(on);
+      };
+      const show = panel => {
+        Object.keys(panels).forEach(k => { panels[k].hidden = k !== panel; });
+        card.classList.toggle('nf-wide', panel === 'canli');
+        card.classList.toggle('nf-mid', panel === 'bagis');
+        modal.classList.add('open');
+        if (panel === 'canli' && !canliLoaded) {
+          canliLoaded = true;
+          canliFrame.src = CANLI_SRC;
+          const fade = () => { canliCover.style.opacity = '0'; setTimeout(() => canliCover.style.display = 'none', 500); };
+          canliFrame.addEventListener('load', fade, { once: true });
+          setTimeout(fade, 4500);
+        }
+      };
+      const close = () => {
+        if (canliFs) { setCanliFs(false); return; }
+        modal.classList.remove('open');
+      };
+      window.addEventListener('message', e => {
+        const d = e.data;
+        if (d && d.nf === 'panel' && panels[d.panel]) show(d.panel);
+      });
+      document.getElementById('nfClose').addEventListener('click', close);
+      document.getElementById('nfGirisBack').addEventListener('click', close);
+      document.getElementById('nfCanliFs').addEventListener('click', () => setCanliFs(!canliFs));
+      document.getElementById('nfCanliExit').addEventListener('click', () => setCanliFs(false));
+      modal.addEventListener('click', e => { if (e.target === modal) close(); });
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.classList.contains('open')) close(); });
+
+      const form = document.getElementById('nfContactForm');
+      const msg = document.getElementById('nfContactMsg');
+      const btn = document.getElementById('nfSend');
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const payload = { name: form.name.value.trim(), email: form.email.value.trim(), topic: form.topic.value, message: form.message.value.trim() };
+        if (!payload.name || !payload.email || !payload.message) { msg.textContent = 'Gönderilemedi. Lütfen tekrar dene.'; msg.style.color = '#ffa3aa'; return; }
+        btn.disabled = true; btn.textContent = 'Gönderiliyor…'; msg.textContent = '';
+        let ok = false;
+        try { const r = await window.notflix.mail.send(payload); ok = !!(r && r.ok); } catch (err) { ok = false; }
+        msg.textContent = ok ? 'Mesajın bize ulaştı. En geç 24 saat içinde dönüş yapıyoruz.' : 'Gönderilemedi. Lütfen tekrar dene.';
+        msg.style.color = ok ? '#12d9a0' : '#ffa3aa';
+        btn.disabled = false; btn.textContent = 'Mesajı Gönder';
+        if (ok) form.reset();
+      });
+
+      // Bağış formu: miktar seçimi veya manuel/gönüllü tutar (0–5000 TL). Aynı gizli adrese iletilir.
+      const bForm = document.getElementById('nfBagisForm');
+      const bMsg = document.getElementById('nfBagisMsg');
+      const bBtn = document.getElementById('nfBagisSend');
+      const amountSel = document.getElementById('nfAmount');
+      const manualWrap = document.getElementById('nfManualWrap');
+      const manualAmount = document.getElementById('nfManualAmount');
+      const syncManual = () => {
+        const manual = amountSel.value === 'manual';
+        manualWrap.hidden = !manual;
+        manualAmount.required = manual;
+      };
+      amountSel.addEventListener('change', syncManual);
+      syncManual();
+      bForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        const name = bForm.name.value.trim();
+        const email = bForm.email.value.trim();
+        const note = bForm.note.value.trim();
+        let amount = amountSel.value === 'manual' ? Number(manualAmount.value) : Number(amountSel.value);
+        if (!name || !email) { bMsg.textContent = 'Lütfen adını ve e-postanı gir.'; bMsg.style.color = '#ffa3aa'; return; }
+        if (amountSel.value === 'manual' && (!Number.isFinite(amount) || amount < 0 || amount > 5000)) { bMsg.textContent = 'Tutar 0 ile 5000 TL arasında olmalı.'; bMsg.style.color = '#ffa3aa'; return; }
+        const message = 'Bağış miktarı: ' + amount + ' TL' + (note ? '\nNot: ' + note : '');
+        bBtn.disabled = true; bBtn.textContent = 'Gönderiliyor…'; bMsg.textContent = '';
+        let ok = false;
+        try { const r = await window.notflix.mail.send({ name, email, topic: 'Bağış', message }); ok = !!(r && r.ok); } catch (err) { ok = false; }
+        bMsg.textContent = ok ? 'Teşekkür ederiz, mesajınız geliştiriciye ulaştı. En yakın zamanda sizinle e-posta yoluyla iletişime geçilecektir.' : 'Gönderilemedi. Lütfen tekrar dene.';
+        bMsg.style.color = ok ? '#12d9a0' : '#ffa3aa';
+        bBtn.disabled = false; bBtn.textContent = 'Bağış Yap';
+        if (ok) { bForm.reset(); syncManual(); }
+      });
+    })();
+
+    // Güncelleme denetimi: GitHub'daki update.json sürümü uygulama sürümünden yeniyse bildir.
+    (function () {
+      const U = window.notflix && window.notflix.update;
+      const box = document.getElementById('nfUpdate');
+      if (!U || !box) return;
+      const title = document.getElementById('nfUpTitle');
+      const text = document.getElementById('nfUpText');
+      const openBtn = document.getElementById('nfUpOpen');
+      let url = '';
+      const close = () => box.classList.remove('on');
+      document.getElementById('nfUpClose').addEventListener('click', close);
+      document.getElementById('nfUpLater').addEventListener('click', close);
+      openBtn.addEventListener('click', () => { if (url) U.open(url); close(); });
+      const check = async () => {
+        try {
+          const r = await U.check();
+          if (!r || !r.ok || !r.update) return;
+          url = r.url || '';
+          title.textContent = 'Yeni sürüm v' + String(r.latest).replace(/^v/i, '') + ' hazır';
+          text.textContent = (r.notes ? r.notes + ' ' : '') + 'Mevcut sürüm: v' + String(r.current).replace(/^v/i, '');
+          openBtn.style.display = url ? '' : 'none';
+          box.classList.add('on');
+        } catch (e) {}
+      };
+      setTimeout(check, 5000);
+      setInterval(check, 6 * 60 * 60 * 1000);
+    })();
+  </script>
+</body>
+</html>

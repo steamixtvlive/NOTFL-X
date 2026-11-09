@@ -1,0 +1,19 @@
+{
+  "name": "notflix-shell",
+  "productName": "NOTFLİX",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CSS/iskelt testi: filmmodu stil katmani kendi kabugumuzda",
+  "main": "src/main.js",
+  "scripts": {
+    "setup": "node scripts/fetch-assets.mjs",
+    "build": "node scripts/build-css.mjs",
+    "predev": "npm run build",
+    "dev": "electron .",
+    "preshot": "npm run build",
+    "shot": "electron . --shot"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  }
+}
