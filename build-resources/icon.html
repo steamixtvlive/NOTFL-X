@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>NOTFLİX ikon</title>
+<style>
+  @font-face { font-family: 'Bebas Neue'; src: url('../assets/fonts/BebasNeue.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: block; }
+  html, body { margin: 0; padding: 0; background: #07070a; overflow: hidden; }
+  #stage { width: 1024px; height: 1024px; display: block; }
+</style>
+</head>
+<body>
+<canvas id="stage" width="1024" height="1024"></canvas>
+<script>
+  const FONT = "'Bebas Neue', 'Arial Narrow', Impact, sans-serif";
+
+  function roundedRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // Metni ikinci derece Bezier yayı üzerine harf harf yerleştirir.
+  function arcText(ctx, text, p0, pc, p1, fontPx, letterSpacing, drawChar) {
+    ctx.font = fontPx + 'px ' + FONT;
+    const widths = Array.from(text).map(ch => ctx.measureText(ch).width);
+    const total = widths.reduce((a, b) => a + b, 0) + letterSpacing * (text.length - 1);
+
+    const samples = 1600;
+    const pts = [];
+    let len = 0;
+    let prev = null;
+    for (let i = 0; i <= samples; i++) {
+      const t = i / samples;
+      const mt = 1 - t;
+      const x = mt * mt * p0.x + 2 * mt * t * pc.x + t * t * p1.x;
+      const y = mt * mt * p0.y + 2 * mt * t * pc.y + t * t * p1.y;
+      if (prev) len += Math.hypot(x - prev.x, y - prev.y);
+      pts.push({ x, y, len });
+      prev = { x, y };
+    }
+    const totalLen = len;
+    const at = dist => {
+      let lo = 0, hi = pts.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (pts[mid].len < dist) lo = mid + 1; else hi = mid;
+      }
+      return pts[lo];
+    };
+
+    let cursor = (totalLen - total) / 2;
+    for (let i = 0; i < text.length; i++) {
+      const w = widths[i];
+      const d = cursor + w / 2;
+      const a = at(Math.max(0, Math.min(totalLen, d - 2)));
+      const b = at(Math.max(0, Math.min(totalLen, d + 2)));
+      const angle = Math.atan2(b.y - a.y, b.x - a.x);
+      const p = at(d);
+      drawChar(text[i], p.x, p.y, angle, w);
+      cursor += w + letterSpacing;
+    }
+  }
+
+  function renderIcon(size) {
+    const c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+    const ctx = c.getContext('2d');
+    const k = size / 1024;
+    ctx.save();
+    ctx.scale(k, k);
+    ctx.clearRect(0, 0, 1024, 1024);
+
+    // Dış zemin (tam kare, koyu) + yuvarlatılmış marka kartı
+    ctx.fillStyle = '#07070a';
+    ctx.fillRect(0, 0, 1024, 1024);
+
+    const bg = ctx.createRadialGradient(340, 210, 40, 512, 512, 820);
+    bg.addColorStop(0, '#31070c');
+    bg.addColorStop(0.42, '#120e13');
+    bg.addColorStop(0.78, '#09090d');
+    bg.addColorStop(1, '#050507');
+    roundedRect(ctx, 30, 30, 964, 964, 216);
+    ctx.fillStyle = bg;
+    ctx.fill();
+
+    // İnce ızgara dokusu
+    ctx.save();
+    roundedRect(ctx, 30, 30, 964, 964, 216);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,.045)';
+    ctx.lineWidth = 1.5;
+    for (let x = 122; x < 1024; x += 92) {
+      ctx.beginPath(); ctx.moveTo(x, 30); ctx.lineTo(x, 994); ctx.stroke();
+    }
+    ctx.restore();
+
+    // Çerçeve: dış parlak, iç ince
+    const rim = ctx.createLinearGradient(60, 40, 960, 990);
+    rim.addColorStop(0, '#ff4a52');
+    rim.addColorStop(0.5, '#e50914');
+    rim.addColorStop(1, '#8d050c');
+    roundedRect(ctx, 30, 30, 964, 964, 216);
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = 13;
+    ctx.stroke();
+    roundedRect(ctx, 56, 56, 912, 912, 192);
+    ctx.strokeStyle = 'rgba(255,90,100,.16)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Üst köşede yumuşak kırmızı ışık
+    const bloom = ctx.createRadialGradient(300, 160, 10, 300, 160, 620);
+    bloom.addColorStop(0, 'rgba(229,9,20,.24)');
+    bloom.addColorStop(0.5, 'rgba(229,9,20,.06)');
+    bloom.addColorStop(1, 'rgba(229,9,20,0)');
+    roundedRect(ctx, 30, 30, 964, 964, 216);
+    ctx.fillStyle = bloom;
+    ctx.fill();
+
+    // Arkada dev, çok soluk N filigranı kaldırıldı: küçük boyutlarda netliği bozuyordu.
+
+    // Çok küçük boyutlarda (16/24 px) kelime markası okunmaz; Bebas "N" monogramı kullanılır.
+    if (size <= 24) {
+      const ng = ctx.createLinearGradient(0, 260, 0, 800);
+      ng.addColorStop(0, '#ff3b45');
+      ng.addColorStop(0.5, '#e50914');
+      ng.addColorStop(1, '#a8060e');
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '760px ' + FONT;
+      ctx.fillStyle = ng;
+      ctx.fillText('N', 512, 520);
+      ctx.strokeStyle = ng;
+      ctx.lineWidth = 10;
+      ctx.lineJoin = 'round';
+      ctx.strokeText('N', 512, 520);
+      ctx.restore();
+      ctx.save();
+      ctx.strokeStyle = 'rgba(229,9,20,.7)';
+      ctx.lineWidth = 16;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(250, 842);
+      ctx.quadraticCurveTo(512, 790, 774, 842);
+      ctx.stroke();
+      ctx.restore();
+      ctx.restore();
+      return c.toDataURL('image/png');
+    }
+
+    // NOTFLİX kelime markası: hafif kavisli, Bebas Neue
+    const p0 = { x: 82, y: 594 };
+    const pc = { x: 512, y: 514 };
+    const p1 = { x: 942, y: 594 };
+    const textGrad = ctx.createLinearGradient(0, 460, 0, 680);
+    textGrad.addColorStop(0, '#ff3b45');
+    textGrad.addColorStop(0.45, '#e50914');
+    textGrad.addColorStop(1, '#a8060e');
+
+    const draw = (glow) => arcText(ctx, 'NOTFLİX', p0, pc, p1, 270, 3, (ch, x, y, angle) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '270px ' + FONT;
+      ctx.lineJoin = 'round';
+      if (glow) {
+        ctx.shadowColor = 'rgba(229,9,20,.5)';
+        ctx.shadowBlur = 22;
+        ctx.fillStyle = 'rgba(229,9,20,.55)';
+        ctx.fillText(ch, 0, 0);
+      } else {
+        ctx.fillStyle = textGrad;
+        ctx.fillText(ch, 0, 0);
+        ctx.strokeStyle = textGrad;
+        ctx.lineWidth = 5;
+        ctx.strokeText(ch, 0, 0);
+      }
+      ctx.restore();
+    });
+    if (size >= 64) draw(true);
+    draw(false);
+
+    // Altında ince marka yayı
+    ctx.save();
+    ctx.shadowColor = 'rgba(229,9,20,.45)';
+    ctx.shadowBlur = 18;
+    ctx.strokeStyle = 'rgba(229,9,20,.6)';
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(188, 738);
+    ctx.quadraticCurveTo(512, 676, 836, 738);
+    ctx.stroke();
+    ctx.restore();
+
+    // Yayın ortasında küçük parlak nokta
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,80,90,.85)';
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = '#ff4a52';
+    ctx.beginPath();
+    ctx.arc(512, 707, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.restore();
+    return c.toDataURL('image/png');
+  }
+
+  window.renderIcon = renderIcon;
+  window.iconReady = (async () => {
+    try { await document.fonts.load('274px "Bebas Neue"'); } catch (e) {}
+    await document.fonts.ready;
+    return document.fonts.check('274px "Bebas Neue"');
+  })();
+</script>
+</body>
+</html>

@@ -74,7 +74,7 @@
     hits.forEach(t => { t.nodeValue = t.nodeValue.replace(/filmmodu/gi, 'NOTFLİX'); });
   }
 
-  // Sağ üstteki alana + footer'ın en altına "Bağış Yap" ekle.
+  // Sağ üstteki alana + footer'ın en altına geliştirici destek bağlantısını ekle.
   function addBagis() {
     if (!document.getElementById('nfBagisNav')) {
       const slot = document.querySelector('header .ml-auto') || document.querySelector('header');
@@ -83,8 +83,8 @@
         a.id = 'nfBagisNav';
         a.href = '#';
         a.dataset.nfPanel = 'bagis';
-        a.className = 'btn-sm shrink-0 rounded-pill border border-white/20 px-3 py-2 text-[13px] font-semibold text-content-secondary transition hover:border-accent/60 hover:text-white';
-        a.textContent = 'Bağış Yap';
+        a.className = 'btn-sm shrink-0 whitespace-nowrap rounded-pill border border-white/20 px-3 py-2 text-[13px] font-semibold text-content-secondary transition hover:border-accent/60 hover:text-white';
+        a.textContent = 'Geliştiriciye Destek';
         slot.appendChild(a);
       }
     }
@@ -96,7 +96,7 @@
         a.href = '#';
         a.dataset.nfPanel = 'bagis';
         a.className = 'inline-block py-1 font-semibold text-accent transition hover:text-accent-hover';
-        a.textContent = 'Bağış Yap';
+        a.textContent = 'Geliştiriciye Destek';
         cp.parentNode.appendChild(a);
       }
     }

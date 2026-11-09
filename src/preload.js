@@ -24,7 +24,11 @@ contextBridge.exposeInMainWorld('notflix', {
   },
   update: {
     check: () => ipcRenderer.invoke('update:check'),
-    open: (url) => ipcRenderer.invoke('update:open', url)
+    justInstalled: () => ipcRenderer.invoke('update:just-installed'),
+    open: (url) => ipcRenderer.invoke('update:open', url),
+    download: (url) => ipcRenderer.invoke('update:download', url),
+    install: (filePath) => ipcRenderer.invoke('update:install', filePath),
+    onProgress: (cb) => ipcRenderer.on('update:progress', (_e, p) => cb(p))
   },
   account: {
     state: () => ipcRenderer.invoke('account:state'),

@@ -130,6 +130,14 @@
     #nfUpdate .nf-up-btn:hover { background: #f40612; }
     #nfUpdate .nf-up-later { padding: 9px 14px; border: 1px solid rgba(255,255,255,.14); border-radius: 9px; background: transparent; color: #b6bcc6; font-size: 12.5px; font-weight: 600; cursor: pointer; }
     #nfUpdate .nf-up-later:hover { border-color: rgba(255,255,255,.3); color: #fff; }
+    #nfUpdate .nf-up-btn:disabled { opacity: .65; cursor: default; }
+    #nfUpdate #nfUpProgress { display: block; height: 6px; background: rgba(255,255,255,.12); border-radius: 999px; overflow: hidden; margin-top: 12px; }
+    #nfUpdate #nfUpProgress[hidden] { display: none; }
+    #nfUpdate #nfUpBar { height: 100%; width: 0%; background: #e50914; transition: width .2s ease; }
+    #nfUpdate #nfUpBar.idle { width: 38% !important; animation: nfUpIdle 1.1s ease-in-out infinite; transition: none; }
+    @keyframes nfUpIdle { 0% { transform: translateX(-110%); } 100% { transform: translateX(280%); } }
+    #nfUpdate #nfUpPct { margin-top: 6px; font-size: 11px; color: #b6bcc6; }
+    #nfUpdate #nfUpPct[hidden] { display: none; }
   </style>
 </head>
 <body>
@@ -205,7 +213,7 @@
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7.5-4.6-9.5-9C1 8.5 3 5 6.5 5c2 0 3.5 1.5 5.5 3.5C14 6.5 15.5 5 17.5 5 21 5 23 8.5 21.5 12c-2 4.4-9.5 9-9.5 9z"/></svg>
           </div>
           <div>
-            <h1 class="nf-h1">Bağış Yap</h1>
+            <h1 class="nf-h1">Geliştiriciye Destek</h1>
             <p class="nf-sub nf-sub-left">NOTFLİX gönüllülük esasıyla yürür; desteğiniz doğrudan sunucu ve altyapı giderlerine gider.</p>
           </div>
         </div>
@@ -233,7 +241,7 @@
           </div>
           <div id="nfManualWrap" hidden><label for="nfManualAmount">Tutar (0 – 5000 TL)</label><input id="nfManualAmount" name="manual" type="number" min="0" max="5000" step="1" class="nf-field" placeholder="Örn. 750"></div>
           <div><label for="nfBNote">Mesajın (isteğe bağlı)</label><textarea id="nfBNote" name="note" rows="2" class="nf-field"></textarea></div>
-          <button type="submit" class="nf-btn" id="nfBagisSend">Bağış Yap</button>
+          <button type="submit" class="nf-btn" id="nfBagisSend">Geliştiriciye Destek</button>
           <p class="nf-msg" id="nfBagisMsg"></p>
         </form>
       </div>
@@ -269,13 +277,15 @@
     </div>
   </div>
 
-  <!-- Yeni sürüm bildirimi -->
+  <!-- Yeni sürüm bildirimi: program içi indirme + arka plan sessiz kurulum -->
   <div id="nfUpdate" role="status" aria-live="polite">
     <button type="button" class="nf-up-x" id="nfUpClose" aria-label="Kapat">×</button>
     <h3 id="nfUpTitle">Yeni sürüm hazır</h3>
     <p id="nfUpText"></p>
+    <div id="nfUpProgress" hidden><div id="nfUpBar"></div></div>
+    <p id="nfUpPct" hidden></p>
     <div class="nf-up-actions">
-      <button type="button" class="nf-up-btn" id="nfUpOpen">İndir</button>
+      <button type="button" class="nf-up-btn" id="nfUpOpen">İndir ve Kur</button>
       <button type="button" class="nf-up-later" id="nfUpLater">Daha sonra</button>
     </div>
   </div>
@@ -433,12 +443,12 @@
         try { const r = await window.notflix.mail.send({ name, email, topic: 'Bağış', message }); ok = !!(r && r.ok); } catch (err) { ok = false; }
         bMsg.textContent = ok ? 'Teşekkür ederiz, mesajınız geliştiriciye ulaştı. En yakın zamanda sizinle e-posta yoluyla iletişime geçilecektir.' : 'Gönderilemedi. Lütfen tekrar dene.';
         bMsg.style.color = ok ? '#12d9a0' : '#ffa3aa';
-        bBtn.disabled = false; bBtn.textContent = 'Bağış Yap';
+        bBtn.disabled = false; bBtn.textContent = 'Geliştiriciye Destek';
         if (ok) { bForm.reset(); syncManual(); }
       });
     })();
 
-    // Güncelleme denetimi: GitHub'daki update.json sürümü uygulama sürümünden yeniyse bildir.
+    // Güncelleme: GitHub'daki update.json yeniyse program içinde arka planda indir ve sessizce kur
     (function () {
       const U = window.notflix && window.notflix.update;
       const box = document.getElementById('nfUpdate');
@@ -446,19 +456,102 @@
       const title = document.getElementById('nfUpTitle');
       const text = document.getElementById('nfUpText');
       const openBtn = document.getElementById('nfUpOpen');
+      const laterBtn = document.getElementById('nfUpLater');
+      const prog = document.getElementById('nfUpProgress');
+      const bar = document.getElementById('nfUpBar');
+      const pct = document.getElementById('nfUpPct');
       let url = '';
+      let busy = false;
+      let fallback = false;
       const close = () => box.classList.remove('on');
       document.getElementById('nfUpClose').addEventListener('click', close);
-      document.getElementById('nfUpLater').addEventListener('click', close);
-      openBtn.addEventListener('click', () => { if (url) U.open(url); close(); });
+      laterBtn.addEventListener('click', close);
+      const fmtMB = n => (Number(n) / 1048576).toFixed(1) + ' MB';
+      const setProgress = p => {
+        if (!p) return;
+        prog.hidden = false;
+        pct.hidden = false;
+        if (p.phase === 'done') {
+          bar.style.width = '100%';
+          pct.textContent = 'İndirme tamamlandı, kurulum başlatılıyor. Uygulama kapanacak...';
+          return;
+        }
+        const total = Number(p.total || 0);
+        const downloaded = Number(p.downloaded || 0);
+        const percent = p.percent != null ? Number(p.percent) : (total ? Math.round(downloaded / total * 100) : 0);
+        bar.style.width = percent + '%';
+        pct.textContent = total
+          ? 'İndiriliyor... %' + percent + ' (' + fmtMB(downloaded) + ' / ' + fmtMB(total) + ')'
+          : 'İndiriliyor... ' + fmtMB(downloaded);
+      };
+      if (typeof U.onProgress === 'function') U.onProgress(setProgress);
+      openBtn.addEventListener('click', async () => {
+        if (!url) return;
+        if (fallback) { if (U.open) U.open(url); close(); return; }
+        if (busy) return;
+        busy = true;
+        openBtn.disabled = true;
+        laterBtn.disabled = true;
+        openBtn.textContent = 'İndiriliyor...';
+        prog.hidden = false;
+        pct.hidden = false;
+        bar.style.width = '0%';
+        pct.textContent = 'İndirme başlatılıyor...';
+        try {
+          const dl = await U.download(url);
+          if (!dl || !dl.ok) throw new Error((dl && dl.error) || 'İndirme başarısız');
+          title.textContent = 'Kurulum başlıyor';
+          text.textContent = (dl.fileName || 'Setup') + ' Electron kurulumu otomatik açılacak. Program kapanacak, yeni sürüm kurulum bitince açılacak.';
+          openBtn.textContent = 'Kuruluyor...';
+          // Setup'ta fake ilerleme yok: kurulum penceresi (Electron NSIS) kendi ilerlemesini gösterir
+          prog.hidden = true;
+          pct.hidden = true;
+          bar.classList.remove('idle');
+          const inst = await U.install(dl.filePath);
+          if (!inst || !inst.ok) throw new Error((inst && inst.error) || 'Kurulum başlatılamadı');
+          // Kurulum Electron setupında otomatik açılır, birlet
+        } catch (e) {
+          title.textContent = 'Güncelleme başarısız';
+          text.textContent = String((e && e.message) || e) + ' — İstersen sayfayı açıp manuel kurabilirsin.';
+          openBtn.disabled = false;
+          openBtn.textContent = 'Sayfayı Aç';
+          laterBtn.disabled = false;
+          busy = false;
+          fallback = true;
+          bar.classList.remove('idle');
+          prog.hidden = true;
+          pct.hidden = true;
+        }
+      });
       const check = async () => {
         try {
+          // Yeni sürüme geçmişsen bir kez haber ver, sonra hemen kapat (her açılışta tekrarlamasın)
+          try {
+            const j = await U.justInstalled();
+            if (j && j.ok) {
+              title.textContent = 'Güncelleme tamamlandı';
+              text.textContent = 'NOTFLİX yeni sürüme geçti. İyi seyirler!';
+              prog.hidden = true;
+              pct.hidden = true;
+              openBtn.style.display = 'none';
+              box.classList.add('on');
+              setTimeout(close, 6000);
+              return;
+            }
+          } catch {}
           const r = await U.check();
           if (!r || !r.ok || !r.update) return;
           url = r.url || '';
           title.textContent = 'Yeni sürüm v' + String(r.latest).replace(/^v/i, '') + ' hazır';
           text.textContent = (r.notes ? r.notes + ' ' : '') + 'Mevcut sürüm: v' + String(r.current).replace(/^v/i, '');
           openBtn.style.display = url ? '' : 'none';
+          openBtn.textContent = 'İndir ve Kur';
+          openBtn.disabled = false;
+          fallback = false;
+          bar.classList.remove('idle');
+          bar.style.width = '0%';
+          prog.hidden = true;
+          pct.hidden = true;
           box.classList.add('on');
         } catch (e) {}
       };

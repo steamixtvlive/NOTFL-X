@@ -2,7 +2,11 @@ const { app, BrowserWindow, session, ipcMain, screen, webFrameMain, shell } = re
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const https = require('https');
+const { spawn } = require('child_process');
 const account = require('./account');
+
+let mainWin = null;
 
 const shotMode = process.argv.includes('--shot');
 const contentPath = path.join(__dirname, '..', 'assets', 'content.json');
@@ -172,22 +176,163 @@ app.whenReady().then(async () => {
       return { ok: false, current, error: String((e && e.message) || e) };
     }
   });
+  // Yeni sürüme geçmiş mi? Açılışta bir kez "Güncelleme tamamlandı" göstermek için
+  ipcMain.handle('update:just-installed', async () => {
+    try {
+      const flag = path.join(app.getPath('userData'), 'update-done.flag');
+      if (fs.existsSync(flag)) { try { fs.unlinkSync(flag); } catch {} return { ok: true }; }
+      return { ok: false };
+    } catch { return { ok: false }; }
+  });
+  // Helpers: update URL doğrula, indirme ve sessiz kurulum
+  const isAllowedUpdateUrl = u => {
+    try {
+      if (u.protocol !== 'https:') return false;
+      const host = u.hostname.toLowerCase();
+      if (host === 'api.github.com') return true;
+      if (host === 'github.com' && u.pathname.toLowerCase().startsWith('/steamixtvlive/notfl-x')) return true;
+      // GitHub release dosyaları bu hostlara yönlenir: release-assets / objects / github-releases
+      if (host.endsWith('.githubusercontent.com')) return true;
+      if (host === 'githubusercontent.com') return true;
+      return false;
+    } catch { return false; }
+  };
+  // Releases sayfası (örn. /releases/latest) verildiyse, API ile doğrudan .exe asset adresini bul
+  async function resolveDirectAssetUrl(urlStr) {
+    const u = new URL(urlStr);
+    const p = u.pathname.toLowerCase();
+    // Zaten doğrudan asset indirme adresi ise olduğu gibi indir
+    if (/releases\/download\/.*\.exe$/.test(p) || p.endsWith('.exe') || p.endsWith('.msi')) return urlStr;
+    const m = u.pathname.match(/^\/([^\/]+)\/([^\/]+)\/releases\/(latest|tag\/([^\/]+)).*$/i);
+    if (!m) return urlStr;
+    const owner = m[1], repo = m[2];
+    const tag = m[4] ? decodeURIComponent(m[4]) : null;
+    const apiUrl = 'https://api.github.com/repos/' + owner + '/' + repo + '/releases/' + (tag ? 'tags/' + encodeURIComponent(tag) : 'latest');
+    const r = await fetch(apiUrl, { headers: { 'User-Agent': 'NOTFLIX-Updater', Accept: 'application/vnd.github+json' } });
+    if (!r.ok) return urlStr;
+    const j = await r.json().catch(() => null);
+    const assets = (j && j.assets) || [];
+    const exe = assets.find(a => /\.exe$/i.test(a.name || '')) || assets.find(a => /\.msi$/i.test(a.name || ''));
+    if (exe && exe.browser_download_url) return exe.browser_download_url;
+    return urlStr;
+  }
+  function downloadToFile(targetUrl, dest, onProgress) {
+    return new Promise((resolve, reject) => {
+      const doGet = (currentUrl, redirects) => {
+        if (redirects > 10) return reject(new Error('Too many redirects'));
+        let cu;
+        try { cu = new URL(currentUrl); } catch (e) { return reject(e); }
+        const mod = cu.protocol === 'https:' ? https : http;
+        let req;
+        try {
+          req = mod.get(currentUrl, { headers: { 'User-Agent': 'NOTFLIX-Updater' } }, res => {
+          const code = res.statusCode || 0;
+          if ([301, 302, 303, 307, 308].includes(code)) {
+            const loc = res.headers.location;
+            res.resume();
+            if (!loc) return reject(new Error('Yönlendirme adresi yok'));
+            const nextUrl = new URL(loc, currentUrl);
+            if (!isAllowedUpdateUrl(nextUrl)) return reject(new Error('İzin verilmeyen yönlendirme adresi'));
+            return doGet(nextUrl.toString(), redirects + 1);
+          }
+          if (code !== 200) {
+            res.resume();
+            return reject(new Error('HTTP ' + code));
+          }
+          const total = Number(res.headers['content-length'] || 0);
+          let downloaded = 0;
+          const ws = fs.createWriteStream(dest);
+          res.on('data', chunk => {
+            downloaded += chunk.length;
+            if (onProgress) onProgress({ downloaded, total, percent: total ? Math.round(downloaded / total * 100) : null });
+          });
+          res.pipe(ws);
+          ws.on('finish', () => resolve(dest));
+          ws.on('error', reject);
+          res.on('error', reject);
+        });
+        } catch (e) { return reject(e); }
+        req.on('error', reject);
+      };
+      doGet(targetUrl, 0);
+    });
+  }
   ipcMain.handle('update:open', async (_e, url) => {
     try {
       const u = new URL(String(url || ''));
-      if (u.protocol !== 'https:') return { ok: false };
-      const host = u.hostname.toLowerCase();
-      const allowed = (host === 'github.com' && u.pathname.toLowerCase().startsWith('/steamixtvlive/notfl-x')) ||
-        host === 'objects.githubusercontent.com' || host === 'github-releases.githubusercontent.com';
-      if (!allowed) return { ok: false };
+      if (!isAllowedUpdateUrl(u)) return { ok: false, error: 'İzin verilmeyen adres' };
       await shell.openExternal(u.toString());
       return { ok: true };
     } catch (e) {
-      return { ok: false };
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  });
+  // Program içi indirme: tarayıcı açmadan, arka planda setup dosyasını indir
+  ipcMain.handle('update:download', async (_e, url) => {
+    try {
+      const raw = String(url || '').trim();
+      if (!raw) return { ok: false, error: 'URL yok' };
+      const u = new URL(raw);
+      if (!isAllowedUpdateUrl(u)) return { ok: false, error: 'İzin verilmeyen adres' };
+      const win = mainWin || BrowserWindow.getAllWindows()[0];
+      const send = p => { try { if (win && !win.isDestroyed()) win.webContents.send('update:progress', p); } catch {} };
+      let direct = await resolveDirectAssetUrl(raw);
+      const d = new URL(direct);
+      if (!isAllowedUpdateUrl(d)) return { ok: false, error: 'Doğrudan indirme adresi çözülemedi' };
+      let fileName = path.basename(decodeURIComponent(d.pathname)) || 'NOTFLIX-Setup.exe';
+      if (!/\.exe$/i.test(fileName) && !/\.msi$/i.test(fileName)) fileName += '.exe';
+      const tmpDir = app.getPath('temp');
+      const dest = path.join(tmpDir, fileName);
+      send({ phase: 'start', downloaded: 0, total: 0, percent: 0 });
+      await downloadToFile(direct, dest, p => send({ phase: 'download', ...p }));
+      try {
+        const st = fs.statSync(dest);
+        if (!st.size) return { ok: false, error: 'İndirilen dosya boş' };
+      } catch { return { ok: false, error: 'Dosya doğrulanamadı' }; }
+      send({ phase: 'done', downloaded: fs.statSync(dest).size, total: fs.statSync(dest).size, percent: 100 });
+      return { ok: true, filePath: dest, fileName };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  });
+  // Kurulum: programdan indirilen setup aynen Electron NSIS setupında otomatik açılıp kurulur
+  ipcMain.handle('update:install', async (_e, filePath) => {
+    try {
+      const p = String(filePath || '');
+      if (!p) return { ok: false, error: 'Dosya yolu yok' };
+      if (!/\.exe$/i.test(p) && !/\.msi$/i.test(p)) return { ok: false, error: 'Desteklenmeyen dosya türü' };
+      const tmpDir = app.getPath('temp');
+      if (!path.normalize(p).startsWith(path.normalize(tmpDir))) {
+        return { ok: false, error: 'Dosya konumu doğrulanamadı' };
+      }
+      if (!fs.existsSync(p)) return { ok: false, error: 'Dosya bulunamadı' };
+      if (process.platform === 'win32') {
+        // Electron oneClick setup: tıklayınca direk kurar, kendi ilerlemesini gösterir,
+        // bitince yeni programı açar. Önce bu program kapanır (kilidi açılır),
+        // 2 sn sonra setup otomatik açılır. PowerShell yok — direkt installer spawn.
+        try {
+          const flagPath = path.join(app.getPath('userData'), 'update-done.flag');
+          fs.writeFileSync(flagPath, 'done', 'utf8');
+        } catch {}
+        // Setupı direkt başlat (Electron native setup), sonra bu programı kapat
+        setTimeout(() => {
+          try {
+            const child = spawn(p, [], { detached: true, stdio: 'ignore', shell: false, windowsHide: false });
+            child.unref();
+          } catch {}
+          try { app.quit(); } catch {}
+        }, 500);
+        return { ok: true };
+      }
+      await shell.openPath(p);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
     }
   });
 
   const win = createWindow(shotMode);
+  mainWin = win;
   win.webContents.on('console-message', (...a) => { const msg = a.find(x => typeof x === 'string' && /ERROR|Error/.test(x)); if (msg) console.log('CONSOLE:', msg); });
 
   // Embed marka enjeksiyonu: filmmodu çerçevesi her yüklendiğinde NOTFLİX markasını,
@@ -211,10 +356,38 @@ app.whenReady().then(async () => {
             "JSON.stringify({brand:document.querySelectorAll('.nf-word').length,forum:document.querySelectorAll('a[href*=\"/forum\"]').length,giris:document.querySelectorAll('a[data-nf-panel=\"giris\"]').length,iletisim:document.querySelectorAll('a[data-nf-panel=\"iletisim\"]').length,bagisNav:document.querySelectorAll('#nfBagisNav').length,bagisFooter:document.querySelectorAll('#nfBagisFooter').length,premium:document.querySelectorAll('a[href*=\"/premium\"]').length,canli:document.querySelectorAll('#nfCanliNav').length,report:document.querySelectorAll('.tb-pop').length,react:document.querySelectorAll('[x-data*=\"dislikes\"]').length,yorum:document.querySelectorAll('#yorumlar').length,legal:document.querySelectorAll('[data-nf-legal]').length,telifbox:(document.body.innerText.match(/telifbox/gi)||[]).length,langBtn:document.querySelectorAll('button[aria-label=\"Dil seç\"]').length,fmText:(document.body.innerText.match(/filmmodu/gi)||[]).length,title:document.title})"
           )).then(r => console.log('EMBED-BRAND:', r)).catch(() => {});
         } else if (/131\.123\.43\.89/.test(url)) {
-          // Canlı TV uzak arayüzü: sol nav gizle, içerik sıfıra sıfır, renk paleti bizimkiyle aynı.
+          // Canlı TV: sol nav gizle + accent paleti (eski davranış, düzen bozmadan)
           frame.executeJavaScript(
             '(function(){var s=document.createElement("style");s.textContent=' + JSON.stringify(canliCss) + ';(document.head||document.documentElement).appendChild(s);return getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();})()'
           ).then(a => console.log('CANLI-THEME accent:', a)).catch(() => {});
+          // Sadece Turkey kategorisi olarak direkt aç (az ekleme, Vuma düzeni aynen)
+          const nfTurkeyOnly = `(function(){
+            var tries = 0;
+            var timer = setInterval(function(){
+              tries++;
+              var selects = document.querySelectorAll('select.sort-select');
+              if (selects.length >= 2) {
+                var sortSel = selects[0];
+                if (sortSel && sortSel.value !== 'name') {
+                  sortSel.value = 'name';
+                  sortSel.dispatchEvent(new Event('change', {bubbles:true}));
+                  sortSel.dispatchEvent(new Event('input', {bubbles:true}));
+                }
+                var countrySel = selects[selects.length-1];
+                var hasTurkey = Array.from(countrySel.options).some(o => o.value === 'Turkey');
+                if (hasTurkey && countrySel.value !== 'Turkey') {
+                  countrySel.value = 'Turkey';
+                  countrySel.dispatchEvent(new Event('change', {bubbles:true}));
+                  countrySel.dispatchEvent(new Event('input', {bubbles:true}));
+                  clearInterval(timer);
+                  return;
+                }
+                if (countrySel.value === 'Turkey' && sortSel.value === 'name') { clearInterval(timer); return; }
+              }
+              if (tries > 20) clearInterval(timer);
+            }, 500);
+          })()`;
+          frame.executeJavaScript(nfTurkeyOnly).catch(() => {});
         }
       } catch (e) {}
     });

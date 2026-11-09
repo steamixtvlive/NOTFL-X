@@ -8,12 +8,49 @@
   "scripts": {
     "setup": "node scripts/fetch-assets.mjs",
     "build": "node scripts/build-css.mjs",
+    "build:renderer": "node scripts/build-renderer.mjs",
+    "build:icon": "electron scripts/render-icon.cjs",
+    "dist": "npm run build && npm run build:renderer && npm run build:icon && electron-builder --win nsis",
+    "dist:dir": "npm run build && npm run build:renderer && npm run build:icon && electron-builder --win --dir",
     "predev": "npm run build",
     "dev": "electron .",
     "preshot": "npm run build",
     "shot": "electron . --shot"
   },
   "devDependencies": {
-    "electron": "^33.2.0"
+    "electron": "^33.2.0",
+    "electron-builder": "^26.18.0",
+    "javascript-obfuscator": "^5.10.0",
+    "png-to-ico": "^3.0.2"
+  },
+  "build": {
+    "appId": "app.notflix.desktop",
+    "productName": "NOTFLİX",
+    "directories": {
+      "buildResources": "build-resources",
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "embed.html",
+      "src/**/*",
+      "dist-build/renderer.js",
+      "assets/**/*",
+      "package.json",
+      "!assets/css/filmmodu.raw.css",
+      "!assets/css/filmmodu.notflix.css",
+      "!scripts/**/*",
+      "!build-resources/**/*"
+    ],
+    "win": {
+      "icon": "build-resources/icon.ico",
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }
