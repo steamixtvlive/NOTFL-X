@@ -135,7 +135,7 @@ app.whenReady().then(async () => {
 
   // Güncelleme: sürüm bilgisi GitHub'daki update.json'dan okunur. Yeni setup yayınlandığında
   // yalnızca bu dosyadaki version/url alanlarını güncellemek yeterlidir.
-  const UPDATE_JSON = 'https://raw.githubusercontent.com/steamixtvlive/NOTFL-X/main/update.json';
+  const UPDATE_JSON = process.env.NOTFLIX_UPDATE_JSON || 'https://raw.githubusercontent.com/steamixtvlive/NOTFL-X/main/update.json';
   const verParts = v => String(v || '').trim().replace(/^v/i, '').split(/[^0-9]+/).filter(Boolean).map(n => parseInt(n, 10) || 0);
   const isNewer = (latest, current) => {
     const a = verParts(latest), b = verParts(current);
@@ -157,11 +157,13 @@ app.whenReady().then(async () => {
       const latest = String(j.version || j.latest || '').trim();
       if (!latest) return { ok: false, current, error: 'Sürüm bilgisi yok' };
       const url = String(j.url || j.download || j.setup || '').trim();
+      const newer = isNewer(latest, current);
+      console.log('UPDATE-CHECK:', 'mevcut', current, '->', latest, newer ? '(yeni sürüm)' : '(güncel)');
       return {
         ok: true,
         current,
         latest,
-        update: isNewer(latest, current),
+        update: newer,
         url,
         notes: String(j.notes || j.changelog || ''),
         published: String(j.published || '')
