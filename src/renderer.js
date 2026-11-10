@@ -184,6 +184,8 @@
     document.documentElement.setAttribute('lang', lang);
   }
 
+  const normT = s => String(s || '').toLowerCase().replace(/ç/g,'c').replace(/ğ/g,'g').replace(/ı/g,'i').replace(/ö/g,'o').replace(/ş/g,'s').replace(/ü/g,'u').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
   // ========== TMDB (resmi ücretsiz API — detay + fragman) ==========
   const TMDB = (function () {
     const KEY = '21e3ff1da3bd38d1f167560193503c34';
@@ -191,8 +193,7 @@
     const cache = {};
     const lcode = () => (LANGS[lang] && LANGS[lang].tmdb) || 'tr-TR';
     async function j(url) { try { const r = await fetch(url); return r.ok ? await r.json() : null; } catch (e) { return null; } }
-    // Türkçe çeviri başlıkları TMDB'de farklı olabilir; eşleşmeyi gevşetmek için normalize et.
-    const normT = s => String(s || '').toLowerCase().replace(/ç/g,'c').replace(/ğ/g,'g').replace(/ı/g,'i').replace(/ö/g,'o').replace(/ş/g,'s').replace(/ü/g,'u').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    // Türkçe çeviri başlıkları TMDB'de farklı olabilir; eşleşme üstteki normT ile gevşetilir.
     function pickBest(results, want) {
       if (!results || !results.length) return null;
       const w = normT(want);
@@ -253,8 +254,8 @@
     const seriesBySlug = new Map(VOD.series.map(s => [s.slug, s]));
     // clean a film display title: "TR - EN [tags] (year) - Dublaj" -> keep "TR - EN"
     const cleanTitle = t => (t || '').replace(/\s*\[[^\]]*\]/g, '').replace(/\s*\(\d{4}\)/, '').replace(/\s*-\s*(Dublaj|Altyaz[ıi]|Dublaj & Altyaz[ıi])\s*$/i, '').trim();
-    const filmCard = f => ({ slug: f.slug, kind: 'film', title: cleanTitle(f.t) || f.t, year: f.y, img: f.img, genres: f.genres });
-    const seriesCard = s => ({ slug: s.slug, kind: 'dizi', title: s.name, year: '', img: s.img });
+    const filmCard = f => ({ slug: f.slug, kind: 'film', title: cleanTitle(f.t) || f.t, year: f.y, img: f.img, genres: f.genres, rating: f.rating || '', desc: f.desc || '' });
+    const seriesCard = s => ({ slug: s.slug, kind: s.anime ? 'anime' : 'dizi', title: s.name, year: s.y || '', img: s.img, genres: s.genres || [], rating: s.rating || '' });
     const animeSet = new Set(); // series whose name/genres suggest anime
     const isAnime = s => /anime|animasyon/i.test((s.name || '') + ' ' + Object.keys(s.seasons).join(' ')) || s.name;
     const rand = (arr, n) => arr.slice().sort(() => Math.random() - 0.5).slice(0, n);
@@ -278,6 +279,8 @@
       if (q === '/kutuphane') { render(renderKutuphane()); return; }
       if (q === '/kesfet-sihirbazi') { render(renderWizard()); return; }
       if (q === '/takvim') { render(renderTakvim()); return; }
+      if (q === '/top250') { render(renderTop250()); return; }
+      if (q === '/ara') { render(renderAra()); return; }
       if (q === '/trend') { render(renderTrend()); return; }
       if (q === '/koleksiyonlar') { render(renderCollections()); return; }
       if (q === '/premium') { render(renderPremium()); return; }
@@ -338,8 +341,8 @@
     const pickFilms = films.filter(f => f.y).slice(0, 14);
     const pickSeries = series.slice(0, 10);
     data.hero.slides = [
-      ...pickFilms.map(f => ({ title: V.cleanTitle(f.t), backdrop: f.img, slug: f.slug, kind: 'Film', kindSlug: 'film', tags: f.platforms, year: f.y, genres: f.genres.join(', '), desc: '' })),
-      ...pickSeries.map(s => ({ title: s.name, backdrop: s.img, slug: s.slug, kind: 'Dizi', kindSlug: 'dizi', tags: [], year: '', genres: '', desc: '' }))
+      ...pickFilms.map(f => ({ title: V.cleanTitle(f.t), backdrop: f.backdrop || f.img, slug: f.slug, kind: 'Film', kindSlug: 'film', tags: [], year: f.y, genres: (f.genres || []).join(', '), rating: f.rating || '', desc: f.desc || '' })),
+      ...pickSeries.map(s => ({ title: s.name, backdrop: s.backdrop || s.img, slug: s.slug, kind: 'Dizi', kindSlug: s.anime ? 'anime' : 'dizi', tags: [], year: s.y || '', genres: (s.genres || []).join(', '), rating: s.rating || '', desc: s.desc || '' }))
     ].slice(0, 24);
     const withRank = arr => arr.map((c, i) => Object.assign(c, { rank: i + 1 }));
     const recentEps = [];
@@ -359,8 +362,8 @@
     s.push(posterGrid(t('rails.recentFilm'), films.slice(0, 18).map(V.filmCard), 'grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6', '/katalog/filmler?sirala=yeni'));
     s.push(rankRail(t('rails.trendSeries'), withRank(V.rand(series, 10).map(V.seriesCard)), '/katalog/diziler'));
     s.push(episodeGrid(t('rails.recentEp'), recentEps, 'grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4', '/katalog/diziler'));
-    const animes = films.filter(f => f.genres.some(g => /anim/i.test(g))).slice(0, 12).map(V.filmCard);
-    if (animes.length) s.push(plainRail(t('rails.anime'), animes, '/katalog/tur/Animasyon'));
+    const animes = [...series.filter(x => x.anime).map(V.seriesCard), ...films.filter(f => (f.genres || []).some(g => /anim/i.test(g))).map(V.filmCard)].slice(0, 12);
+    if (animes.length) s.push(plainRail(t('rails.anime'), animes, '/katalog/animes'));
     s.push('</div>');
     return s.join('\n');
   }
@@ -409,7 +412,7 @@
 
   // ========== SEARCH ==========
   function searchHtml() {
-    return `<section class="border-b border-line bg-bg-secondary/30"><div class="container-site py-5"><div class="relative mx-auto max-w-xl"><form class="flex items-center gap-2 rounded-pill border border-line bg-bg-elevated/90 p-1.5 shadow-card" onsubmit="return false"><span class="pl-3 text-content-muted"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span><input type="search" placeholder="${esc(t('common.search'))}" class="w-full border-0 bg-transparent text-base text-white placeholder:text-content-muted focus:ring-0 sm:text-sm"><button type="submit" class="btn-accent btn-sm min-h-[44px] shrink-0 sm:min-h-0">${esc(t('nav.discover'))}</button></form></div></div></section>`;
+    return `<section class="border-b border-line bg-bg-secondary/30"><div class="container-site py-5"><div class="relative mx-auto max-w-xl"><form class="flex items-center gap-2 rounded-pill border border-line bg-bg-elevated/90 p-1.5 shadow-card" onsubmit="return false"><span class="pl-3 text-content-muted"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span><input type="search" name="q" placeholder="${esc(t('common.search'))}" class="w-full border-0 bg-transparent text-base text-white placeholder:text-content-muted focus:ring-0 sm:text-sm"><button type="submit" class="btn-accent btn-sm min-h-[44px] shrink-0 sm:min-h-0">${esc(t('nav.discover'))}</button></form></div></div></section>`;
   }
 
   // ========== POSTER CARD ==========
@@ -421,7 +424,7 @@
     return `
       <a href="#/detay/${esc(slug)}/${esc(kindSlug)}" class="group block">
         <div class="relative aspect-[2/3] overflow-hidden rounded-card bg-bg-elevated tb-skeleton shadow-card transition duration-300 ease-smooth group-hover:shadow-poster">
-          <img ${kindSlug === 'dizi' ? `src="${esc(item.img)}"` : ''} alt="${esc(item.title)}" loading="lazy" decoding="async" data-fb="${esc(item.title)}|${esc(item.year || '')}|${esc(item.kind || 'film')}|poster" onload="this.parentElement.classList.remove('tb-skeleton')" class="absolute inset-0 h-full w-full object-cover transition duration-300 ease-smooth group-hover:scale-105">
+          <img ${item.img ? `src="${esc(item.img)}"` : ''} alt="${esc(item.title)}" loading="lazy" decoding="async" data-fb="${esc(item.title)}|${esc(item.year || '')}|${esc(item.kind || 'film')}|poster" onload="this.parentElement.classList.remove('tb-skeleton')" class="absolute inset-0 h-full w-full object-cover transition duration-300 ease-smooth group-hover:scale-105">
           <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-black/0 opacity-0 transition duration-300 group-hover:opacity-100"></div>
           <div class="absolute inset-0 flex items-center justify-center opacity-0 transition duration-300 group-hover:opacity-100"><span class="flex h-12 w-12 items-center justify-center rounded-full bg-accent/90 text-white shadow-lg"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></div>
           <div class="absolute left-2 top-2 flex gap-1"><span class="badge ${badgeClass}">${esc(badgeText)}</span><span class="badge badge-hd hidden min-[400px]:inline-flex">HD</span></div>
@@ -479,13 +482,13 @@
   function vodStream(slug, kind, season, ep) {
     if (!V) return null;
     const f = V.filmBySlug.get(slug);
-    if (f) return { url: f.url, ref: f.ref, ua: f.ua, img: f.img, title: V.cleanTitle(f.t) || f.t, embed: f.embed };
+    if (f) return { url: f.url, ref: f.ref, ua: f.ua, img: f.img, title: V.cleanTitle(f.t) || f.t, embed: f.embed, page: f.page || '' };
     const s = V.seriesBySlug.get(slug);
     if (s) {
       const sk = season || Object.keys(s.seasons).sort((a, b) => Number(a) - Number(b))[0];
       const list = s.seasons[sk] || [];
       const chosen = list.find(e => String(e.e) === String(ep)) || list[0];
-      if (chosen) return { url: chosen.url, ref: chosen.ref, ua: chosen.ua, img: s.img, title: s.name + ' — ' + sk + '. Sezon ' + chosen.e + '. Bölüm', embed: chosen.embed };
+      if (chosen) return { url: chosen.url, ref: chosen.ref, ua: chosen.ua, img: s.img, title: s.name + ' — ' + sk + '. Sezon ' + chosen.e + '. Bölüm', embed: chosen.embed, page: chosen.page || '' };
     }
     return null;
   }
@@ -496,14 +499,14 @@
       const f = V.filmBySlug.get(slug);
       const s = V.seriesBySlug.get(slug);
       if (f) { kind = 'film'; item = V.filmCard(f); details = null; }
-      else if (s) { kind = 'dizi'; item = V.seriesCard(s); details = vodSeriesDetails(s); }
+      else if (s) { kind = s.anime ? 'anime' : 'dizi'; item = V.seriesCard(s); details = vodSeriesDetails(s); }
       else { item = V.filmCard(V.films[0]); kind = 'film'; details = null; }
     } else {
       item = findItem(slug);
       details = (data.details && data.details[slug]) || null;
     }
     if (!item) return '<div class="container-site py-20"><p class="text-content-muted">İçerik bulunamadı.</p></div>';
-    const isSeries = kind === 'dizi';
+    const isSeries = kind === 'dizi' || kind === 'anime';
     const genres = (Array.isArray(item.genres) ? item.genres : String(item.genres || 'Aksiyon, Dram, Gerilim').split(',').map(g => g.trim())).filter(Boolean);
     const similarPool = kind === 'dizi' ? (data.rails.trendDizi || []) : kind === 'anime' ? (data.rails.trendAnime || []) : (data.rails.trendFilm || []);
     const similarTitle = kind === 'dizi' ? t('detail.similarSeries') : kind === 'anime' ? t('detail.similarAnime') : t('detail.similarFilm');
@@ -694,7 +697,7 @@
     let items = [], title = t('common.all');
     if (tur.startsWith('filmler')) { items = V.films.map(V.filmCard); title = t('nav.films'); }
     else if (tur.startsWith('diziler')) { items = V.series.map(V.seriesCard); title = t('nav.series'); }
-    else if (tur.startsWith('animes')) { items = V.films.filter(f => f.genres.some(g => /anim/i.test(g))).map(V.filmCard); title = t('nav.anime'); }
+    else if (tur.startsWith('animes')) { items = [...V.series.filter(s => s.anime).map(V.seriesCard), ...V.films.filter(f => (f.genres || []).some(g => /anim/i.test(g))).map(V.filmCard)]; title = t('nav.anime'); }
     else if (tur.startsWith('canli')) { items = V.series.slice(0, 60).map(V.seriesCard); title = t('nav.live'); }
     else if (tur.startsWith('platform/')) {
       const slug = decodeURIComponent(tur.split('/')[1] || '');
@@ -1013,35 +1016,174 @@
     </div></main>`;
   }
 
-  // ========== TAKVİM (şablon) ==========
+  // ========== TAKVİM (gerçek yayın takvimi — TMDB, günlük önbellek) ==========
   function renderTakvim() {
+    setTimeout(fillTakvim, 30);
+    return `
+      <main class="min-h-[60vh] pb-section">
+        <div class="container-site pt-8">
+          <nav class="mb-6 text-xs text-content-muted"><a href="#/" class="hover:text-white">${esc(t('common.home'))}</a><span class="px-1.5">/</span><span class="text-content-secondary">${esc(t('nav.calendar'))}</span></nav>
+          <h1 class="section-title mb-2">Yayın Takvimi</h1>
+          <p class="mb-8 max-w-2xl text-sm text-content-secondary">Bu hafta yeni bölümü yayınlanan diziler. Tarihler TMDB'den günlük olarak alınır; katalogda olanlar doğrudan açılır.</p>
+          <div id="takvimGrid" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7"><p class="col-span-full py-10 text-center text-sm text-content-muted">Takvim yükleniyor…</p></div>
+        </div>
+      </main>`;
+  }
+  async function takvimData() {
+    const today = new Date();
+    const key = 'nf_takvim_v1';
+    const stamp = today.toISOString().slice(0, 10);
+    try { const c = JSON.parse(localStorage.getItem(key) || 'null'); if (c && c.stamp === stamp && Array.isArray(c.items)) return c.items; } catch (e) {}
+    const lc = (LANGS[lang] && LANGS[lang].tmdb) || 'tr-TR';
+    const tr = await fetch(`https://api.themoviedb.org/3/trending/tv/week?api_key=${TMDB.KEY}&language=${lc}`).then(r => r.ok ? r.json() : null).catch(() => null);
+    const pool = ((tr && tr.results) || []).slice(0, 24);
+    const items = [];
+    let i = 0;
+    async function worker() {
+      while (i < pool.length) {
+        const s = pool[i++];
+        try {
+          const d = await fetch(`https://api.themoviedb.org/3/tv/${s.id}?api_key=${TMDB.KEY}&language=${lc}`).then(r => r.ok ? r.json() : null);
+          if (!d) continue;
+          const ep = d.next_episode_to_air || d.last_episode_to_air;
+          if (!ep || !ep.air_date) continue;
+          items.push({ id: s.id, name: d.name || s.name, poster: TMDB.IMG(d.poster_path, 'w342'), air: ep.air_date, code: 'S' + String(ep.season_number).padStart(2, '0') + 'E' + String(ep.episode_number).padStart(2, '0'), epName: ep.name || '' });
+        } catch (e) {}
+      }
+    }
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    try { localStorage.setItem(key, JSON.stringify({ stamp, items })); } catch (e) {}
+    return items;
+  }
+  async function fillTakvim() {
+    const grid = document.getElementById('takvimGrid');
+    if (!grid) return;
+    const items = await takvimData();
+    if (!document.getElementById('takvimGrid')) return;
     const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
     const today = new Date();
+    const monday = new Date(today); monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+    const findSlug = name => {
+      if (!V) return '';
+      const n = normT(name);
+      const s = V.series.find(x => normT(x.name) === n);
+      return s ? s.slug : '';
+    };
     const cols = days.map((d, i) => {
-      const dt = new Date(today);
-      dt.setDate(today.getDate() - ((today.getDay() + 6) % 7) + i);
+      const dt = new Date(monday); dt.setDate(monday.getDate() + i);
+      const iso = dt.toISOString().slice(0, 10);
       const isToday = dt.toDateString() === today.toDateString();
-      const picks = (data.rails.sonEkleDizi || []).slice(i % 3, (i % 3) + 3);
+      const picks = items.filter(x => x.air === iso);
       const cards = picks.map(p => {
-        const slug = p.href ? p.href.split('/').pop() : 'dizi';
-        return `<a href="#/detay/${encodeURIComponent(slug)}/dizi" class="block truncate rounded-lg border border-line bg-bg-elevated/60 px-2.5 py-2 text-xs font-semibold text-content-secondary transition hover:border-accent/50 hover:text-white">${p.title}</a>`;
+        const slug = findSlug(p.name);
+        const inner = `<div class="flex items-center gap-2.5 rounded-lg border border-line bg-bg-elevated/60 p-2 transition hover:border-accent/50">${p.poster ? `<img src="${esc(p.poster)}" alt="" loading="lazy" class="h-14 w-10 shrink-0 rounded object-cover">` : ''}<div class="min-w-0"><p class="truncate text-xs font-semibold text-content-primary">${esc(p.name)}</p><p class="mt-0.5 text-[10px] font-bold text-accent">${esc(p.code)}</p>${p.epName ? `<p class="truncate text-[10px] text-content-muted">${esc(p.epName)}</p>` : ''}${slug ? '' : '<p class="text-[9px] text-content-muted">katalogda yok</p>'}</div></div>`;
+        return slug ? `<a href="#/detay/${esc(slug)}/dizi" class="block">${inner}</a>` : inner;
       }).join('');
       return `
         <div class="rounded-card-lg border ${isToday ? 'border-accent/60 bg-accent/[0.04]' : 'border-line'} bg-bg-secondary p-3">
           <div class="mb-3 flex items-baseline justify-between">
-            <span class="text-sm font-bold ${isToday ? 'text-accent' : 'text-content-primary'}">${d}</span>
+            <span class="text-sm font-bold ${isToday ? 'text-accent' : 'text-content-primary'}">${d}${isToday ? ' •' : ''}</span>
             <span class="text-xs text-content-muted">${String(dt.getDate()).padStart(2, '0')}.${String(dt.getMonth() + 1).padStart(2, '0')}</span>
           </div>
-          <div class="space-y-2">${cards || '<p class="text-xs text-content-muted">Beklenen yapım yok.</p>'}</div>
+          <div class="space-y-2">${cards || '<p class="text-xs text-content-muted">Beklenen bölüm yok.</p>'}</div>
         </div>`;
     }).join('');
+    grid.innerHTML = cols;
+  }
+
+  // ========== IMDB TOP 250 (gerçek liste, katalog eşleşmeli) ==========
+  function renderTop250() {
+    setTimeout(fillTop250, 30);
     return `
       <main class="min-h-[60vh] pb-section">
         <div class="container-site pt-8">
-          <nav class="mb-6 text-xs text-content-muted"><a href="#/" class="hover:text-white">Ana Sayfa</a><span class="px-1.5">/</span><span class="text-content-secondary">Takvim</span></nav>
-          <h1 class="section-title mb-2">Yayın Takvimi</h1>
-          <p class="mb-8 max-w-2xl text-sm text-content-secondary">Bu haftanın beklenen dizi ve film bölümleri. Şablon düzen; gerçek yayın tarihleri TMDB takvimiyle senkronize edilecek.</p>
-          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">${cols}</div>
+          <nav class="mb-6 text-xs text-content-muted"><a href="#/" class="hover:text-white">${esc(t('common.home'))}</a><span class="px-1.5">/</span><span class="text-content-secondary">IMDB Top 250</span></nav>
+          <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h1 class="section-title mb-2 flex items-center gap-3"><svg class="h-7 w-7 text-star" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z"/></svg>IMDB Top 250</h1>
+              <p class="max-w-2xl text-sm text-content-secondary">Tüm zamanların en yüksek puanlı 250 filmi. Liste haftalık yenilenir; katalogda bulunanlar tek tıkla oynatılır.</p>
+            </div>
+            <span id="top250Count" class="rounded-full border border-line px-3 py-1 text-xs font-semibold text-content-muted"></span>
+          </div>
+          <div id="top250Grid" class="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"><p class="col-span-full py-10 text-center text-sm text-content-muted">Liste yükleniyor…</p></div>
+        </div>
+      </main>`;
+  }
+  async function fillTop250() {
+    const grid = document.getElementById('top250Grid');
+    if (!grid) return;
+    let data250 = null;
+    try {
+      if (window.notflix && notflix.data && notflix.data.top250) {
+        const r = await notflix.data.top250();
+        if (r && r.ok) data250 = r.data;
+      }
+      if (!data250) data250 = await fetch('assets/top250.json').then(r => r.json());
+    } catch (e) {}
+    if (!document.getElementById('top250Grid')) return;
+    const items = (data250 && data250.items) || [];
+    if (!items.length) { grid.innerHTML = '<p class="col-span-full py-10 text-center text-sm text-content-muted">Liste şu an alınamadı. İnternet bağlantını kontrol et.</p>'; return; }
+    let inCat = 0;
+    const matchFilm = m => {
+      if (!V) return null;
+      const n = normT(m.title);
+      return V.films.find(f => normT(V.cleanTitle(f.t) || f.t) === n && (!m.year || !f.y || String(f.y) === String(m.year)))
+        || V.films.find(f => normT(V.cleanTitle(f.t) || f.t) === n) || null;
+    };
+    const cards = items.map(m => {
+      const f = matchFilm(m);
+      if (f) inCat++;
+      const slug = f ? f.slug : '';
+      const img = m.img || (f && f.img) || '';
+      const href = slug ? `#/detay/${esc(slug)}/film` : '';
+      return `
+        <div class="group relative">
+          <${href ? `a href="${href}"` : 'div'} class="block">
+            <div class="relative aspect-[2/3] overflow-hidden rounded-card bg-bg-elevated shadow-card transition duration-300 group-hover:shadow-poster">
+              ${img ? `<img src="${esc(img)}" alt="${esc(m.title)}" loading="lazy" class="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-105">` : ''}
+              <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/30"></div>
+              <span class="absolute left-2 top-2 rounded-badge bg-black/75 px-2 py-0.5 font-condensed text-lg font-bold text-star ring-1 ring-white/10">${m.rank}</span>
+              <span class="absolute right-2 top-2 inline-flex items-center gap-1 rounded-badge bg-black/75 px-2 py-0.5 text-xs font-bold text-star ring-1 ring-white/10">★ ${esc(m.rating)}</span>
+              ${slug ? '<div class="absolute inset-0 flex items-center justify-center opacity-0 transition group-hover:opacity-100"><span class="flex h-12 w-12 items-center justify-center rounded-full bg-accent/90 text-white shadow-lg"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></div>' : ''}
+              <div class="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2">
+                <span class="text-[10px] font-semibold text-white/70">${esc(m.year)}</span>
+                ${slug ? `<span class="rounded-badge bg-accent px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">${esc(t('common.watch'))}</span>` : '<span class="rounded-badge bg-white/10 px-1.5 py-0.5 text-[9px] font-semibold text-white/50">katalogda yok</span>'}
+              </div>
+            </div>
+            <div class="mt-2.5 px-0.5"><h3 class="truncate text-sm font-semibold text-content-primary transition group-hover:text-accent">${esc(m.title)}</h3><p class="mt-0.5 truncate text-xs text-content-muted">${esc((m.genres || []).slice(0, 2).map(g => gName(g)).join(', '))}</p></div>
+          </${href ? 'a' : 'div'}>
+        </div>`;
+    }).join('');
+    grid.innerHTML = cards;
+    const c = document.getElementById('top250Count');
+    if (c) c.textContent = items.length + ' film • ' + inCat + ' tanesi katalogda';
+  }
+
+  // ========== ARAMA ==========
+  function renderAra() {
+    const q = decodeURIComponent((location.hash.split('?q=')[1] || '')).replace(/\+/g, ' ');
+    setTimeout(() => { const i = document.getElementById('araInput'); if (i) { i.value = q; i.focus(); } }, 30);
+    let results = [];
+    if (V && q.trim()) {
+      const n = normT(q);
+      results = [
+        ...V.films.filter(f => normT(V.cleanTitle(f.t) || f.t).includes(n)).map(V.filmCard),
+        ...V.series.filter(s => normT(s.name).includes(n)).map(V.seriesCard)
+      ].slice(0, 120);
+    }
+    return `
+      <main class="min-h-[60vh] pb-section">
+        <div class="container-site pt-8">
+          <h1 class="section-title mb-6">${esc(t('common.search'))}</h1>
+          <form id="araForm" class="mb-8 flex max-w-xl items-center gap-2 rounded-pill border border-line bg-bg-elevated/90 p-1.5 shadow-card">
+            <span class="pl-3 text-content-muted"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
+            <input id="araInput" name="q" type="search" value="${esc(q)}" placeholder="${esc(t('common.search'))}" class="w-full border-0 bg-transparent text-base text-white placeholder:text-content-muted focus:ring-0 sm:text-sm">
+            <button type="submit" class="btn-accent btn-sm shrink-0">${esc(t('nav.discover'))}</button>
+          </form>
+          ${q.trim() ? `<p class="mb-6 text-sm text-content-muted">${results.length} sonuç</p>` : ''}
+          <div class="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            ${results.map(posterCard).join('') || (q.trim() ? '<p class="col-span-full text-sm text-content-muted">Sonuç bulunamadı.</p>' : '')}
+          </div>
         </div>
       </main>`;
   }
@@ -1180,7 +1322,21 @@
     overlay.innerHTML = inner;
     document.body.appendChild(overlay);
     _player = overlay;
-    if (stream && !stream.embed) wirePlayer(overlay, stream);
+    if (stream && !stream.embed) {
+      // Taze token: arka planda çözülmüş güncel adresi bekle; gelmezse katalogdaki adresle başla.
+      const start = s => { if (_player === overlay) wirePlayer(overlay, s); };
+      if (stream.page && window.notflix && notflix.stream && notflix.stream.resolve) {
+        const ld = document.createElement('div');
+        ld.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;background:rgba(0,0,0,.72);z-index:2147483004;color:#fff';
+        ld.innerHTML = '<div style="width:42px;height:42px;border-radius:50%;border:3px solid rgba(255,255,255,.15);border-top-color:#e50914;animation:nfSpin .8s linear infinite"></div><div style="font-size:.85rem;letter-spacing:.08em;color:rgba(255,255,255,.75)">Yayın hazırlanıyor…</div>';
+        overlay.appendChild(ld);
+        const timeout = new Promise(r => setTimeout(() => r(null), 12000));
+        Promise.race([notflix.stream.resolve(stream.page).catch(() => null), timeout]).then(r => {
+          ld.remove();
+          start(r && r.ok && r.url ? Object.assign({}, stream, { url: r.url }) : stream);
+        });
+      } else start(stream);
+    }
     // Gerçek OS tam ekran: pencere tüm ekrana yayılır, player her şeyin önüne geçer.
     nativeFs(true);
     overlay._fs = true;
@@ -1592,8 +1748,7 @@
     setTimeout(hide, 10400);
   }
 
-  // ========== THEME TOGGLE ==========
-  const chip = document.getElementById('themeChip');
+  // ========== THEME (shot modu çekimleri için) ==========
   const link = document.getElementById('themeCss');
   const RAW = 'assets/css/filmmodu.raw.css';
   const ALT = 'assets/css/filmmodu.notflix.css';
@@ -1601,10 +1756,201 @@
   window.setTema = function (ad) {
     tema = ad;
     document.documentElement.dataset.tema = ad;
-    link.href = ad === 'site' ? RAW : ALT;
-    chip.querySelector('.lbl').textContent = ad === 'site' ? 'filmmodu (kırmızı)' : 'NOTFLİX (teal)';
+    if (link) link.href = ad === 'site' ? RAW : ALT;
   };
-  chip.addEventListener('click', () => window.setTema(tema === 'site' ? 'notflix' : 'site'));
+
+  // ========== BİLDİRİMLER (zil + modal havuz) ==========
+  const NOTIFS = [
+    {
+      id: 'mobil-tvbox', tag: 'Duyuru', date: '10 Kasım 2026', icon: 'devices',
+      title: 'Android Mobil & TV Box — Çok Yakında',
+      body: 'Büyük ekran keyfi artık her ekranda. Android mobil uygulamamız ve TV Box sürümümüz çok yakında sizlerle: televizyonunuzda kumandayla, telefonunuzda yanınızda — aynı liste, aynı kalite, aynı sinema deneyimi. Geliştirme tüm hızıyla sürüyor; hazır olduğunda ilk burada duyuracağız.',
+      devices: true
+    },
+    {
+      id: 'vizyon-durus', tag: 'Vizyon ve Duruş', date: '10 Kasım 2026', icon: 'flag',
+      title: 'Yolumuz Uzun, Adımlarımız Emin',
+      body: 'Projemize yapılan yapıcı ya da olumsuz her türlü eleştiriye saygımız sonsuz; her geri bildirim bizi daha ileri taşır. Ancak vizyonumuzu gölgelemeye çalışanlara inat, Android ve TV Box projemizi hayata geçirme kararı aldık. Bu adımlarla artık kimsenin ne dediğine kulak asmadan, bu yolda gidebildiği kadar uzun süre, emin adımlarla yürüyeceğiz. Sözümüz aynı: sizlere evinizde sinema keyfini ve canlı kanal deneyimini en üst seviyede yaşatmaya devam edeceğiz. Bize inanan herkesin yanındayız.'
+    },
+    {
+      id: 'sistem-kalite', tag: 'Sistem', date: '10 Kasım 2026', icon: 'spark',
+      title: 'Arayüz ve Oynatma Baştan Yenilendi',
+      body: 'NOTFLİX artık tamamen kendi yerel arayüzüyle çalışıyor: sayfalar daha hızlı açılıyor, menüler ve kartlar tek bir düzen dilinde birleşti. Oynatıcıya kalite seçimi, oynatma hızı, resim içinde resim ve gerçek tam ekran eklendi; yayın adresleri arka planda sessizce tazeleniyor, böylece "açılmıyor" sorunları en aza iniyor. Katalog, afişler ve içerik bilgileri düzenli olarak güncelleniyor. Kısacası sistem kalitesi gözle görülür şekilde yükseldi — güncel kalmanız için her sürümde bu iyileştirmeler sürecek.'
+    },
+    {
+      id: 'yeni-sekmeler', tag: 'Arayüz', date: '9 Kasım 2026', icon: 'grid',
+      title: 'Takvim ve IMDB Top 250 Geldi',
+      body: 'Üst menüye iki yeni sekme eklendi. Yayın Takvimi, bu hafta yeni bölümü çıkan dizileri gün gün listeler; katalogda olanlar tek tıkla açılır. IMDB Top 250 ise tüm zamanların en iyi filmlerini sıralar — katalogda bulunanlar doğrudan oynatılır.'
+    },
+    {
+      id: 'oynatici', tag: 'Oynatıcı', date: '8 Kasım 2026', icon: 'play',
+      title: 'Yeni Nesil Oynatıcı',
+      body: 'Kalite seçimi (Auto / 1080p / 720p), 0.5x–2x hız, ses düzeyi, tam ekran ve resim içinde resim tek bir kontrol çubuğunda. Fareyi bıraktığında kontroller kaybolur, hareket ettirdiğinde anında geri gelir; izlerken hiçbir şey ekranı kapatmaz.'
+    },
+    {
+      id: 'kutuphane', tag: 'Arayüz', date: '7 Kasım 2026', icon: 'bookmark',
+      title: 'Kütüphane: Listen Hep Yanında',
+      body: 'Beğendiğin film ve dizileri "Listeme Ekle" ile kaydet; Kütüphane sekmesinden hepsine tek yerde ulaş. Listen cihazında saklanır, kaybolmaz.'
+    },
+    {
+      id: 'canli-tv', tag: 'Canlı TV', date: '6 Kasım 2026', icon: 'live',
+      title: 'Canlı TV Türkiye Kanalları A–Z',
+      body: 'Canlı TV sekmesinde Türkiye kanalları alfabetik sırada. Kanalını seç, tam ekran yap; gerisini bize bırak. Yayınlar kesintisiz izlenir.'
+    }
+  ];
+  const NF_READ_KEY = 'nf_notif_read';
+  function nfReadSet() { try { return new Set(JSON.parse(localStorage.getItem(NF_READ_KEY) || '[]')); } catch (e) { return new Set(); } }
+  function nfSaveRead(s) { try { localStorage.setItem(NF_READ_KEY, JSON.stringify([...s])); } catch (e) {} }
+  function updateBellDot() {
+    const dot = document.getElementById('nfBellDot');
+    if (!dot) return;
+    const read = nfReadSet();
+    dot.classList.toggle('hidden', NOTIFS.every(n => read.has(n.id)));
+  }
+  const NF_ICONS = {
+    devices: '<rect x="2" y="4" width="13" height="9" rx="1.5"/><path d="M6 16h5M8.5 13v3"/><rect x="16" y="9" width="5" height="10" rx="1.2"/><path d="M18 17h1"/>',
+    flag: '<path d="M5 21V4m0 1h12l-2.5 3.5L17 12H5"/>',
+    spark: '<path d="M12 2v4m0 12v4M2 12h4m12 0h4M5 5l2.5 2.5M16.5 16.5 19 19M19 5l-2.5 2.5M7.5 16.5 5 19"/>',
+    grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    play: '<circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l5.5-3.5z"/>',
+    bookmark: '<path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/>',
+    live: '<circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.7 4.7a10.4 10.4 0 0 0 0 14.6M19.3 4.7a10.4 10.4 0 0 1 0 14.6"/>'
+  };
+  function devicesSvg() {
+    return `<div class="nf-devices" aria-hidden="true"><svg viewBox="0 0 320 120" fill="none">
+      <g class="nf-phone-g"><rect x="52" y="30" width="34" height="62" rx="6" stroke="#8a8f98" stroke-width="2"/><rect class="nf-screen" x="57" y="37" width="24" height="44" rx="2" fill="#e50914" opacity=".7"/><circle cx="69" cy="86" r="2" fill="#8a8f98"/></g>
+      <g><rect x="130" y="22" width="120" height="72" rx="8" stroke="#8a8f98" stroke-width="2"/><rect class="nf-screen" x="138" y="30" width="104" height="56" rx="4" fill="#e50914" opacity=".55"/><path d="M172 102h36" stroke="#8a8f98" stroke-width="3" stroke-linecap="round"/><path d="M190 94v8" stroke="#8a8f98" stroke-width="3"/></g>
+      <g stroke="#ff6b72" stroke-width="2" stroke-linecap="round"><path class="nf-wave" d="M268 48a14 14 0 0 1 0 24"/><path class="nf-wave w2" d="M276 40a26 26 0 0 1 0 40"/></g>
+      <text x="160" y="116" text-anchor="middle" fill="rgba(255,255,255,.45)" font-size="9" letter-spacing="3" font-family="sans-serif">ÇOK YAKINDA</text>
+    </svg></div>`;
+  }
+  let _nfModal = null;
+  function closeNotifications() { if (_nfModal) { _nfModal.remove(); _nfModal = null; } }
+  function openNotifications() {
+    closeNotifications();
+    const read = nfReadSet();
+    const items = NOTIFS.map(n => `
+      <article class="nf-notif ${read.has(n.id) ? '' : 'unread'}">
+        ${read.has(n.id) ? '' : '<span class="nf-unread-dot"></span>'}
+        <div class="flex items-center justify-between gap-3">
+          <span class="nf-tag"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${NF_ICONS[n.icon] || NF_ICONS.spark}</svg>${esc(n.tag)}</span>
+          <span class="nf-date">${esc(n.date)}</span>
+        </div>
+        <h3>${esc(n.title)}</h3>
+        ${n.devices ? devicesSvg() : ''}
+        <p>${esc(n.body)}</p>
+      </article>`).join('');
+    const el = document.createElement('div');
+    el.className = 'nf-modal-backdrop';
+    el.innerHTML = `
+      <div class="nf-modal" role="dialog" aria-label="Bildirimler">
+        <div class="nf-modal-head">
+          <span class="flex h-10 w-10 items-center justify-center rounded-full bg-accent/15 text-accent ring-1 ring-accent/30"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></span>
+          <div class="min-w-0 flex-1">
+            <h2 class="text-base font-bold text-white">Bildirimler</h2>
+            <p class="text-xs text-content-muted">${NOTIFS.length} bildirim • duyurular ve yenilikler</p>
+          </div>
+          <button data-nf-readall class="rounded-pill border border-white/10 px-3 py-1.5 text-[11px] font-semibold text-content-secondary transition hover:border-accent/50 hover:text-white">Tümünü okundu işaretle</button>
+          <button data-nf-close class="flex h-9 w-9 items-center justify-center rounded-full text-content-secondary transition hover:bg-white/10 hover:text-white" aria-label="Kapat"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+        <div class="nf-pool">${items}</div>
+      </div>`;
+    el.addEventListener('click', e => {
+      if (e.target === el || e.target.closest('[data-nf-close]')) { closeNotifications(); return; }
+      if (e.target.closest('[data-nf-readall]')) {
+        nfSaveRead(new Set(NOTIFS.map(n => n.id)));
+        el.querySelectorAll('.nf-notif.unread').forEach(a => { a.classList.remove('unread'); const d = a.querySelector('.nf-unread-dot'); if (d) d.remove(); });
+        updateBellDot();
+      }
+    });
+    document.body.appendChild(el);
+    _nfModal = el;
+    // Açılışta havuzdaki her şey okundu sayılır; zil noktası söner.
+    nfSaveRead(new Set(NOTIFS.map(n => n.id)));
+    updateBellDot();
+  }
+  function initNotifications() {
+    const bell = document.getElementById('nfBell');
+    if (bell) bell.addEventListener('click', openNotifications);
+    updateBellDot();
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      if (_gateOpen) { e.stopImmediatePropagation(); return; }
+      if (_nfModal) { e.stopImmediatePropagation(); closeNotifications(); }
+    }, true);
+  }
+
+  // ========== ZORUNLU GÜNCELLEME KAPISI ==========
+  let _gateOpen = false, _gateEl = null;
+  function showUpdateGate(r) {
+    if (_gateOpen) return;
+    _gateOpen = true;
+    closeNotifications();
+    const el = document.createElement('div');
+    el.className = 'nf-gate';
+    el.innerHTML = `
+      <div class="nf-gate-card" role="alertdialog" aria-label="Güncelleme gerekli">
+        <div class="nf-gate-ico"><svg class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></div>
+        <p class="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">Güncelleme gerekli</p>
+        <h2 class="mt-2 text-2xl font-bold text-white">Yeni sürüm hazır: ${esc(r.latest)}</h2>
+        <p class="mt-3 text-sm leading-relaxed text-content-secondary">Daha iyi bir deneyim için güncelleme geldi. En son iyileştirmelerden faydalanabilmen için şimdi güncellemen gerekiyor; güncelleme tamamlanana kadar uygulama kullanılamaz. İndirme bitince kurulum otomatik başlar.</p>
+        ${r.notes ? `<p class="mt-3 rounded-card border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs text-content-muted">${esc(r.notes)}</p>` : ''}
+        <p class="mt-3 text-xs text-content-muted">Mevcut sürüm: ${esc(r.current)} → Yeni sürüm: ${esc(r.latest)}</p>
+        <div class="nf-gate-bar" data-gate-bar hidden><i></i></div>
+        <p class="mt-2 text-xs text-content-secondary" data-gate-status hidden></p>
+        <button data-gate-go class="btn-accent mt-6 w-full justify-center py-3 text-base">Şimdi Güncelle</button>
+        <p class="mt-3 text-[11px] text-content-muted" data-gate-err></p>
+      </div>`;
+    document.body.appendChild(el);
+    _gateEl = el;
+    const go = el.querySelector('[data-gate-go]');
+    const bar = el.querySelector('[data-gate-bar]');
+    const fill = bar.querySelector('i');
+    const status = el.querySelector('[data-gate-status]');
+    const err = el.querySelector('[data-gate-err]');
+    const u = window.notflix && notflix.update;
+    if (u && u.onProgress) u.onProgress(p => {
+      if (!_gateOpen) return;
+      bar.hidden = false; status.hidden = false;
+      if (p.percent != null) { fill.style.width = p.percent + '%'; status.textContent = 'İndiriliyor… %' + p.percent; }
+      else { fill.style.width = '100%'; status.textContent = 'İndiriliyor… ' + Math.round((p.downloaded || 0) / 1048576) + ' MB'; }
+      if (p.phase === 'done') status.textContent = 'İndirme tamamlandı, kurulum başlıyor…';
+    });
+    go.addEventListener('click', async () => {
+      go.disabled = true; go.textContent = 'İndiriliyor…'; err.textContent = '';
+      bar.hidden = false; status.hidden = false; status.textContent = 'Başlatılıyor…';
+      let d;
+      try { d = await u.download(r.url); } catch (e) { d = { ok: false, error: String(e && e.message || e) }; }
+      if (!d || !d.ok) {
+        err.textContent = 'İndirme başarısız: ' + ((d && d.error) || 'bilinmeyen hata') + '. Tekrar deneyebilirsin.';
+        go.disabled = false; go.textContent = 'Tekrar Dene';
+        return;
+      }
+      go.textContent = 'Kuruluyor…'; status.textContent = 'Kurulum açılıyor, uygulama kapanacak…';
+      try { await u.install(d.filePath); } catch (e) {
+        err.textContent = 'Kurulum başlatılamadı. Tekrar dene.';
+        go.disabled = false; go.textContent = 'Tekrar Dene';
+      }
+    });
+  }
+  async function checkUpdateGate() {
+    if (_gateOpen) return;
+    const u = window.notflix && notflix.update;
+    if (!u || !u.check) return;
+    let r; try { r = await u.check(); } catch (e) { return; }
+    if (r && r.ok && r.update && r.url) showUpdateGate(r);
+  }
+  async function showJustInstalled() {
+    const u = window.notflix && notflix.update;
+    if (!u || !u.justInstalled) return;
+    let r; try { r = await u.justInstalled(); } catch (e) { return; }
+    if (!r || !r.ok) return;
+    const el = document.createElement('div');
+    el.className = 'nf-toast';
+    el.innerHTML = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Güncelleme tamamlandı — en son sürümdesin.';
+    document.body.appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .4s'; setTimeout(() => el.remove(), 450); }, 5000);
+  }
 
   // ========== START ==========
   // Dil tercihini statik chrome'a uygula, menüleri VOD içeriğiyle doldur, splash'ı başlat.
@@ -1613,6 +1959,10 @@
   populateGenresDropdown();
   populateFooterGenres();
   runSplash();
+  initNotifications();
+  checkUpdateGate();
+  setInterval(checkUpdateGate, 6 * 3600 * 1000);
+  showJustInstalled();
 
   // Dil menüsü tıklaması (header, #app dışında → doküman seviyesinde).
   document.addEventListener('click', e => {
@@ -1621,6 +1971,18 @@
   });
   // İletişim formu gönderimi (#app içinde, submit olayı).
   document.addEventListener('submit', e => { if (e.target && e.target.id === 'contactForm') { e.preventDefault(); handleContact(e.target); } });
+  // Arama: ana sayfa formu + arama sayfası formu + üst bardaki büyüteç.
+  document.addEventListener('submit', e => {
+    const f = e.target;
+    if (!f || f.id === 'contactForm' || f.id === 'nfAuthForm') return;
+    const inp = f.querySelector('input[name="q"]');
+    if (!inp) return;
+    e.preventDefault();
+    const q = String(inp.value || '').trim();
+    if (q) location.hash = '#/ara?q=' + encodeURIComponent(q);
+  });
+  const searchBtn = document.getElementById('nfSearchBtn');
+  if (searchBtn) searchBtn.addEventListener('click', () => { location.hash = '#/ara'; });
 
   resolve();
   window.__notflixReady = true;

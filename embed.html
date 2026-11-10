@@ -118,32 +118,99 @@
     #nfCanliExit kbd { font-family: inherit; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 2px 6px; border-radius: 5px; background: rgba(255,255,255,.16); }
     #nfCanliBox.canli-full #nfCanliExit { display: inline-flex; }
 
-    /* Güncelleme bildirimi: sağ altta, iframe'in ve modalların üstünde. */
-    #nfUpdate { position: fixed; right: 18px; bottom: 18px; z-index: 8900; display: none; width: min(370px, calc(100vw - 36px)); padding: 16px 18px 15px; border: 1px solid rgba(229,9,20,.5); border-radius: 14px; background: #141414; color: #fff; box-shadow: 0 18px 55px rgba(0,0,0,.65); font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
-    #nfUpdate.on { display: block; }
-    #nfUpdate .nf-up-x { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 7px; background: transparent; color: #cbd0d8; font-size: 20px; line-height: 1; cursor: pointer; }
-    #nfUpdate .nf-up-x:hover { background: rgba(255,255,255,.1); color: #fff; }
-    #nfUpdate h3 { margin: 0 26px 6px 0; font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
-    #nfUpdate p { margin: 0; font-size: 12.5px; line-height: 1.55; color: #b6bcc6; }
-    #nfUpdate .nf-up-actions { display: flex; gap: 9px; margin-top: 13px; }
-    #nfUpdate .nf-up-btn { flex: 1; padding: 9px 14px; border: 0; border-radius: 9px; background: #e50914; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer; transition: background .15s; }
-    #nfUpdate .nf-up-btn:hover { background: #f40612; }
-    #nfUpdate .nf-up-later { padding: 9px 14px; border: 1px solid rgba(255,255,255,.14); border-radius: 9px; background: transparent; color: #b6bcc6; font-size: 12.5px; font-weight: 600; cursor: pointer; }
-    #nfUpdate .nf-up-later:hover { border-color: rgba(255,255,255,.3); color: #fff; }
-    #nfUpdate .nf-up-btn:disabled { opacity: .65; cursor: default; }
-    #nfUpdate #nfUpProgress { display: block; height: 6px; background: rgba(255,255,255,.12); border-radius: 999px; overflow: hidden; margin-top: 12px; }
-    #nfUpdate #nfUpProgress[hidden] { display: none; }
-    #nfUpdate #nfUpBar { height: 100%; width: 0%; background: #e50914; transition: width .2s ease; }
-    #nfUpdate #nfUpBar.idle { width: 38% !important; animation: nfUpIdle 1.1s ease-in-out infinite; transition: none; }
-    @keyframes nfUpIdle { 0% { transform: translateX(-110%); } 100% { transform: translateX(280%); } }
-    #nfUpdate #nfUpPct { margin-top: 6px; font-size: 11px; color: #b6bcc6; }
-    #nfUpdate #nfUpPct[hidden] { display: none; }
+    /* Bildirim listesi: Facebook/Instagram tarzı minik başlık kartları; tıklayınca kendi modalı açılır. */
+    @keyframes nfDotPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.25); opacity: .7; } }
+
+    /* Bildirim havuzu: modern modal, kaydırılabilir liste */
+    /* Bildirim çekmecesi: zil'in olduğu yerde, aşağıya doğru açılan dikey liste */
+    #nfNotifWrap { position: fixed; inset: 0; z-index: 9500; display: none; pointer-events: none; font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+    #nfNotifWrap.open { display: block; }
+    .nfp-card { position: absolute; pointer-events: auto; width: 372px; max-width: calc(100vw - 24px); max-height: min(72vh, 620px); display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,.14); border-radius: 14px; background: #141414; color: #fff; box-shadow: 0 18px 50px rgba(0,0,0,.65); animation: nfDrawerIn .18s cubic-bezier(.2,.8,.3,1) both; transform-origin: top center; }
+    .nfp-card::before { content: ''; position: absolute; top: -6px; left: var(--caret, 50%); width: 10px; height: 10px; margin-left: -5px; background: #141414; border-left: 1px solid rgba(255,255,255,.14); border-top: 1px solid rgba(255,255,255,.14); transform: rotate(45deg); }
+    @keyframes nfDrawerIn { from { opacity: 0; transform: translateY(-8px) scale(.98); } to { opacity: 1; transform: none; } }
+    .nfp-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px 8px; }
+    .nfp-head .nfp-bell { flex: 0 0 auto; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: rgba(229,9,20,.15); color: #e50914; }
+    .nfp-head h2 { margin: 0; font-size: 14px; font-weight: 800; }
+    .nfp-head p { margin: 1px 0 0; font-size: 10.5px; color: #8a8f98; }
+    .nfp-x { flex: 0 0 auto; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: transparent; color: #cbd0d8; cursor: pointer; }
+    .nfp-x:hover { background: rgba(255,255,255,.1); color: #fff; }
+    .nfp-pool { overflow-y: auto; padding: 2px 8px 10px; display: flex; flex-direction: column; gap: 4px; border-radius: 0 0 14px 14px; scrollbar-width: thin; scrollbar-color: #333 transparent; }
+    .nfp-pool::-webkit-scrollbar { width: 8px; }
+    .nfp-pool::-webkit-scrollbar-track { background: transparent; }
+    .nfp-pool::-webkit-scrollbar-thumb { background: #333; border-radius: 8px; }
+    .nfp-pool::-webkit-scrollbar-thumb:hover { background: #e50914; }
+    .nfp-row { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; border-radius: 10px; background: transparent; color: #fff; text-align: left; cursor: pointer; animation: nfFadeIn .3s ease both; transition: background .15s; }
+    .nfp-row:hover { background: rgba(255,255,255,.07); }
+    .nfp-row.unread { background: rgba(229,9,20,.09); }
+    .nfp-row.unread:hover { background: rgba(229,9,20,.16); }
+    .nfp-row.soon { background: rgba(18,217,160,.10); }
+    .nfp-row.soon:hover { background: rgba(18,217,160,.17); }
+    .nfp-row.soon .nfp-ico { background: rgba(18,217,160,.16); color: #12d9a0; }
+    .nfp-row.soon .nfp-txt b { color: #7cf5d4; }
+    .nfp-row.soon .nfp-dot { background: #12d9a0; }
+    .nfp-row .nfp-ico { flex: 0 0 auto; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: rgba(229,9,20,.14); color: #ff8a90; }
+    .nfp-row .nfp-txt { min-width: 0; flex: 1; }
+    .nfp-row .nfp-txt b { display: block; font-size: 12.5px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nfp-row .nfp-txt span { display: block; margin-top: 1px; font-size: 10.5px; color: #8a8f98; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nfp-row .nfp-dot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 999px; background: #e50914; animation: nfDotPulse 1.6s ease-in-out infinite; }
+    .nfp-row .nfp-chev { flex: 0 0 auto; color: #8a8f98; }
+    .nfp-row:hover .nfp-chev { color: #fff; }
+    @keyframes nfModalIn { from { opacity: 0; transform: translateY(16px) scale(.98); } to { opacity: 1; transform: none; } }
+    @keyframes nfFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    /* Her bildirimin kendi modalı */
+    #nfDetailWrap { position: fixed; inset: 0; z-index: 9550; display: none; align-items: flex-start; justify-content: center; padding: 20px 16px; background: rgba(4,5,10,.78); backdrop-filter: blur(7px); font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+    #nfDetailWrap.open { display: flex; }
+    .nfd-card { margin: auto; width: 100%; max-width: 560px; max-height: calc(100vh - 40px); overflow-y: auto; border: 0; border-radius: 22px; background: radial-gradient(120% 70% at 50% 0%, var(--nfd-glow, rgba(229,9,20,.16)), transparent 62%), #151518; color: #fff; padding: 22px 28px 28px; box-shadow: 0 30px 90px rgba(0,0,0,.7); animation: nfModalIn .28s cubic-bezier(.18,.86,.24,1) both; scrollbar-width: thin; scrollbar-color: #333 transparent; }
+    .nfd-card::-webkit-scrollbar { width: 8px; }
+    .nfd-card::-webkit-scrollbar-thumb { background: #333; border-radius: 8px; }
+    .nfd-card::-webkit-scrollbar-thumb:hover { background: var(--nfd-accent, #e50914); }
+    .nfd-top { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+    .nfd-back { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: 0; border-radius: 999px; background: rgba(255,255,255,.07); color: #b6bcc6; font-size: 11.5px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
+    .nfd-back:hover { background: rgba(255,255,255,.14); color: #fff; }
+    .nfd-top .nfp-x { margin-left: auto; }
+    .nfd-hero { width: 54px; height: 54px; display: flex; align-items: center; justify-content: center; border-radius: 16px; background: color-mix(in srgb, var(--nfd-accent, #e50914) 16%, transparent); color: var(--nfd-accent, #e50914); }
+    .nfd-card h2 { margin: 14px 0 0; font-size: 21px; font-weight: 800; letter-spacing: -.02em; line-height: 1.3; }
+    .nfd-card .nfd-body { margin: 12px 0 0; font-size: 13.5px; line-height: 1.8; color: #c2c7cf; }
+    .nfp-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, var(--nfd-accent, #e50914) 14%, transparent); color: var(--nfd-accent, #ff8a90); font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .nfp-date { font-size: 11px; color: #8a8f98; }
+    .nfp-devices { margin: 10px 0 4px; }
+    .nfp-devices svg { display: block; width: 100%; max-width: 320px; height: auto; margin: 0 auto; }
+    .nfp-devices .nf-screen { animation: nfScreenGlow 2.4s ease-in-out infinite; }
+    .nfp-devices .nf-wave { animation: nfWave 1.8s ease-in-out infinite; }
+    .nfp-devices .nf-wave.w2 { animation-delay: .35s; }
+    .nfp-devices .nf-phone-g { animation: nfFloat 3.2s ease-in-out infinite; }
+    @keyframes nfScreenGlow { 0%,100% { opacity: .45; } 50% { opacity: .85; } }
+    @keyframes nfWave { 0%,100% { opacity: .2; } 50% { opacity: 1; } }
+    @keyframes nfFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+
+    /* Zorunlu güncelleme kapısı: arka plan kilitli, kapatılamaz, tek yol "Şimdi Güncelle". */
+    #nfGate { position: fixed; inset: 0; z-index: 2147483600; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(4,5,10,.94); backdrop-filter: blur(14px); font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+    #nfGate.on { display: flex; }
+    .nfg-card { width: 100%; max-width: 480px; padding: 34px 30px 28px; border: 1px solid rgba(229,9,20,.35); border-radius: 20px; background: #141414; color: #fff; text-align: center; box-shadow: 0 30px 90px rgba(0,0,0,.7), 0 0 60px rgba(229,9,20,.12); animation: nfModalIn .35s cubic-bezier(.18,.86,.24,1) both; }
+    .nfg-ico { width: 68px; height: 68px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(229,9,20,.15); box-shadow: inset 0 0 0 1px rgba(229,9,20,.35); color: #e50914; animation: nfGatePulse 2s ease-in-out infinite; }
+    @keyframes nfGatePulse { 0%,100% { box-shadow: inset 0 0 0 1px rgba(229,9,20,.35), 0 0 0 0 rgba(229,9,20,.25); } 50% { box-shadow: inset 0 0 0 1px rgba(229,9,20,.5), 0 0 0 12px rgba(229,9,20,0); } }
+    .nfg-kicker { margin: 0; font-size: 11px; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; color: #e50914; }
+    .nfg-card h2 { margin: 8px 0 0; font-size: 23px; font-weight: 800; letter-spacing: -.02em; }
+    .nfg-text { margin: 12px 0 0; font-size: 13.5px; line-height: 1.65; color: #b6bcc6; }
+    .nfg-notes { margin: 12px 0 0; padding: 10px 14px; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; background: rgba(255,255,255,.03); font-size: 12px; line-height: 1.5; color: #8a8f98; }
+    .nfg-ver { margin: 12px 0 0; font-size: 11.5px; color: #8a8f98; }
+    .nfg-bar { display: block; height: 6px; margin-top: 16px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; }
+    .nfg-bar[hidden] { display: none; }
+    .nfg-bar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #e50914, #ff6b72); transition: width .2s ease; }
+    .nfg-status { margin: 8px 0 0; font-size: 12px; color: #b6bcc6; }
+    .nfg-status[hidden] { display: none; }
+    .nfg-go { display: block; width: 100%; margin-top: 20px; padding: 13px 18px; border: 0; border-radius: 12px; background: #e50914; color: #fff; font-size: 15px; font-weight: 800; cursor: pointer; transition: background .15s; }
+    .nfg-go:hover { background: #f40612; }
+    .nfg-go:disabled { opacity: .65; cursor: default; }
+    .nfg-err { margin: 10px 0 0; min-height: 1em; font-size: 12px; color: #ffa3aa; }
+    #nfToast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 9600; display: none; align-items: center; gap: 9px; padding: 11px 18px; border: 1px solid rgba(18,217,160,.4); border-radius: 999px; background: rgba(10,20,16,.92); color: #7cf0cf; font-family: 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12.5px; font-weight: 600; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+    #nfToast.on { display: inline-flex; }
   </style>
 </head>
 <body>
   <iframe
     id="filmmodu-frame"
-    src="https://filmmodu.news/"
+    src="/site/"
     style="opacity:0"
     allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
     allowfullscreen>
@@ -239,7 +306,7 @@
               <option value="manual">Manuel / gönüllü tutar</option>
             </select>
           </div>
-          <div id="nfManualWrap" hidden><label for="nfManualAmount">Tutar (0 – 5000 TL)</label><input id="nfManualAmount" name="manual" type="number" min="0" max="5000" step="1" class="nf-field" placeholder="Örn. 750"></div>
+          <div id="nfManualWrap" hidden><label for="nfManualAmount">Tutar (0 ile 5000 TL arası)</label><input id="nfManualAmount" name="manual" type="number" min="0" max="5000" step="1" class="nf-field" placeholder="Örn. 750"></div>
           <div><label for="nfBNote">Mesajın (isteğe bağlı)</label><textarea id="nfBNote" name="note" rows="2" class="nf-field"></textarea></div>
           <button type="submit" class="nf-btn" id="nfBagisSend">Geliştiriciye Destek</button>
           <p class="nf-msg" id="nfBagisMsg"></p>
@@ -250,7 +317,7 @@
         <div class="nf-live-head">
           <div>
             <h1>Canlı TV</h1>
-            <p>Türkçe kanallar A–Z. Yalnızca kanal seçimi yapılabilir; başka alana erişilmez.</p>
+            <p>Türkçe kanallar alfabetik sırada. Yalnızca kanal seçimi yapılabilir; başka alana erişilmez.</p>
           </div>
           <button type="button" class="nf-fs-btn" id="nfCanliFs">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3"/></svg>
@@ -277,17 +344,61 @@
     </div>
   </div>
 
-  <!-- Yeni sürüm bildirimi: program içi indirme + arka plan sessiz kurulum -->
-  <div id="nfUpdate" role="status" aria-live="polite">
-    <button type="button" class="nf-up-x" id="nfUpClose" aria-label="Kapat">×</button>
-    <h3 id="nfUpTitle">Yeni sürüm hazır</h3>
-    <p id="nfUpText"></p>
-    <div id="nfUpProgress" hidden><div id="nfUpBar"></div></div>
-    <p id="nfUpPct" hidden></p>
-    <div class="nf-up-actions">
-      <button type="button" class="nf-up-btn" id="nfUpOpen">İndir ve Kur</button>
-      <button type="button" class="nf-up-later" id="nfUpLater">Daha sonra</button>
+  <!-- Bildirim çekmecesi: zil'in olduğu yerde aşağıya açılan dikey liste -->
+  <div id="nfNotifWrap" role="dialog" aria-label="Bildirimler">
+    <div class="nfp-card" id="nfNotifPanel">
+      <div class="nfp-head">
+        <span class="nfp-bell"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></span>
+        <div style="min-width:0;flex:1">
+          <h2>Bildirimler</h2>
+          <p id="nfNotifCount"></p>
+        </div>
+        <button type="button" class="nfp-x" id="nfNotifClose" aria-label="Kapat"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="nfp-pool" id="nfPool"></div>
     </div>
+  </div>
+
+  <!-- Her bildirimin kendi modalı: listeden tıklayınca açılır -->
+  <div id="nfDetailWrap" role="dialog" aria-modal="true" aria-label="Bildirim detayı">
+    <div class="nfd-card">
+      <div class="nfd-top">
+        <button type="button" class="nfd-back" id="nfDetailBack">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 6 9 12 15 18"/></svg>
+          Listeye dön
+        </button>
+        <button type="button" class="nfp-x" id="nfDetailClose" aria-label="Kapat"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="nfd-hero" id="nfDetailHero" aria-hidden="true"></div>
+      <div class="nfp-meta" style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px">
+        <span class="nfp-tag" id="nfDetailTag"></span>
+        <span class="nfp-date" id="nfDetailDate"></span>
+      </div>
+      <h2 id="nfDetailTitle"></h2>
+      <div id="nfDetailDevices"></div>
+      <p class="nfd-body" id="nfDetailBody"></p>
+    </div>
+  </div>
+
+  <!-- Zorunlu güncelleme kapısı: yeni sürüm varsa arka plan kilitlenir, tek yol güncelleme -->
+  <div id="nfGate">
+    <div class="nfg-card" role="alertdialog" aria-label="Güncelleme gerekli">
+      <div class="nfg-ico"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></div>
+      <p class="nfg-kicker">Güncelleme gerekli</p>
+      <h2 id="nfGateTitle">Yeni sürüm hazır</h2>
+      <p class="nfg-text">Daha iyi bir deneyim için güncelleme geldi. En son iyileştirmelerden faydalanabilmen için şimdi güncellemen gerekiyor; güncelleme tamamlanana kadar uygulama kullanılamaz. İndirme bitince kurulum otomatik başlar.</p>
+      <p class="nfg-notes" id="nfGateNotes" hidden></p>
+      <p class="nfg-ver" id="nfGateVer"></p>
+      <span class="nfg-bar" id="nfGateBar" hidden><i id="nfGateFill"></i></span>
+      <p class="nfg-status" id="nfGateStatus" hidden></p>
+      <button type="button" class="nfg-go" id="nfGateGo">Şimdi Güncelle</button>
+      <p class="nfg-err" id="nfGateErr"></p>
+    </div>
+  </div>
+
+  <div id="nfToast" role="status">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+    Güncelleme tamamlandı, en son sürümdesin.
   </div>
 
   <!-- Splash: worker ile birebir aynı marka intro sahnesi -->
@@ -339,14 +450,14 @@
       const reveal = () => { fr.dataset.nfReady = '1'; fr.style.opacity = '1'; loader.classList.remove('on'); };
       const hide = () => { fr.dataset.nfReady = '0'; fr.style.opacity = '0'; loader.classList.add('on'); };
       loader.classList.add('on'); // ilk açılışta da halka dönsün
+      let safeT = setTimeout(reveal, 6000);
       window.addEventListener('message', e => {
         const d = e.data;
         if (!d) return;
         if (d.nf === 'ready') reveal();
         else if (d.nf === 'hide') hide();
       });
-      fr.addEventListener('load', () => { if (fr.dataset.nfReady !== '1') hide(); }); // ready işaretli değilse gizli tut
-      setTimeout(reveal, 6000); // emniyet: enjeksiyon gelmese de görünür olsun
+      fr.addEventListener('load', () => { if (fr.dataset.nfReady !== '1') hide(); clearTimeout(safeT); safeT = setTimeout(reveal, 6000); }); // ready işaretli değilse gizli tut
     })();
 
     // Giriş / İletişim / Premium / Canlı TV modal sürücüsü — filmmodu iframe'inden mesajla açılır.
@@ -365,21 +476,33 @@
       const CANLI_SRC = 'http://131.123.43.89/#/channels';
       let canliLoaded = false;
       let canliFs = false;
+      let canliSeq = 0;
 
       const setCanliFs = on => {
         canliFs = on;
         canliBox.classList.toggle('canli-full', on);
         if (W) W.fullscreen(on);
       };
+      // Panel kapanınca veya başka panele geçilince yayın kaynağı boşaltılır: ses arka planda devam etmez.
+      const stopCanli = () => {
+        canliSeq++;
+        if (!canliLoaded) return;
+        canliLoaded = false;
+        canliFrame.src = 'about:blank';
+        canliCover.style.display = '';
+        canliCover.style.opacity = '1';
+      };
       const show = panel => {
         Object.keys(panels).forEach(k => { panels[k].hidden = k !== panel; });
         card.classList.toggle('nf-wide', panel === 'canli');
         card.classList.toggle('nf-mid', panel === 'bagis');
         modal.classList.add('open');
+        if (panel !== 'canli') stopCanli();
         if (panel === 'canli' && !canliLoaded) {
           canliLoaded = true;
+          const seq = ++canliSeq;
           canliFrame.src = CANLI_SRC;
-          const fade = () => { canliCover.style.opacity = '0'; setTimeout(() => canliCover.style.display = 'none', 500); };
+          const fade = () => { if (seq !== canliSeq) return; canliCover.style.opacity = '0'; setTimeout(() => { if (seq === canliSeq) canliCover.style.display = 'none'; }, 500); };
           canliFrame.addEventListener('load', fade, { once: true });
           setTimeout(fade, 4500);
         }
@@ -387,6 +510,7 @@
       const close = () => {
         if (canliFs) { setCanliFs(false); return; }
         modal.classList.remove('open');
+        stopCanli();
       };
       window.addEventListener('message', e => {
         const d = e.data;
@@ -448,111 +572,237 @@
       });
     })();
 
-    // Güncelleme: GitHub'daki update.json yeniyse program içinde arka planda indir ve sessizce kur
+    // Bildirimler: sitedeki zil (Geliştiriciye Destek yanında) → başlık listesi → her birinin kendi modalı.
+    (function () {
+      const NOTIFS = [
+        {
+          id: 'mobil-tvbox', tag: 'Duyuru', date: '10 Kasım 2026', icon: 'devices', soon: true,
+          title: 'Sinema Her Ekranda, Çok Yakında!',
+          body: 'Büyük ekran keyfi artık her ekranda. Android mobil uygulamamız ve TV Box sürümümüz çok yakında sizlerle: televizyonunuzda kumandayla, telefonunuzda yanınızda. Aynı liste, aynı kalite, aynı sinema deneyimi. Geliştirme tüm hızıyla sürüyor; hazır olduğunda ilk burada duyuracağız.',
+          devices: true
+        },
+        {
+          id: 'vizyon-durus', tag: 'Vizyon ve Duruş', date: '10 Kasım 2026', icon: 'flag',
+          title: 'Yolumuz Uzun, Adımlarımız Emin',
+          body: 'NOTFLİX, evinizde sinema keyfini ve canlı kanal deneyimini herkes için kesintisiz sunmak amacıyla doğdu. Yapıcı her geri bildirime açığız; eleştiri bizi daha ileri taşır. Olumsuz seslere kulak asmıyoruz: enerjimizi tartışmaya değil, hizmeti büyütmeye ayırıyoruz. Android ve TV Box dahil yeni adımlarımızla bu yolda emin adımlarla, gidebildiği kadar uzun süre yürüyeceğiz. Bize inanan herkesin yanındayız.'
+        },
+        {
+          id: 'sistem-kalite', tag: 'Sistem', date: '10 Kasım 2026', icon: 'spark',
+          title: 'Sistem Kalitesi ve Güncellemeler',
+          body: 'NOTFLİX arayüzü marka kimliğimizle kilitlendi: açılış sahnesi, logolar, renkler ve paneller her ekranda aynı Notflix deneyimini verir. Yayın bağlantıları arka planda sessizce denetlenir ve tazelenir; böylece "açılmıyor" sorunları en aza iner. Katalog ve içerik bilgileri düzenli olarak güncellenir, yeni sürümler programa gelince otomatik kurulur. Kısacası sistem kalitesi gözle görülür şekilde yükseldi; güncel kalmanız için her sürümde bu iyileştirmeler sürecek.'
+        },
+        {
+          id: 'yerel-kilit', tag: 'Sistem', date: '10 Kasım 2026', icon: 'lock',
+          title: 'Arayüz Bizde: Kaynak Kapanasa da Açık',
+          body: 'İzlediğin arayüz artık NOTFLİX kilidi altında: her sayfa ve görsel kendi yerel hafızamızda saklanıyor. Kaynak site yarın kapansa bile arayüz bizde durmaya devam eder; program kapanmaz, ekran kararmaz. Sen izlemeye devam edersin, gerisini biz düşünürüz.'
+        },
+        {
+          id: 'guncelleme', tag: 'Güncelleme', date: '9 Kasım 2026', icon: 'down',
+          title: 'Güncellemeler Artık Otomatik ve Zorunlu',
+          body: 'Yeni sürüm yayınlandığında program seni uyarır ve güncelleme tamamlanana kadar bekler. Tek yapman gereken "Şimdi Güncelle" demek: dosya arka planda iner, kurulum kendiliğinden başlar. Böylece herkes her zaman en son iyileştirmelerle, aynı kalitede izler.'
+        },
+        {
+          id: 'canli-tv', tag: 'Canlı TV', date: '8 Kasım 2026', icon: 'live',
+          title: 'Canlı TV Türkiye Kanalları Alfabetik Sırada',
+          body: 'Canlı TV panelinde Türkiye kanalları alfabetik sırada. Kanalını seç, tam ekran yap; gerisini bize bırak. Yayınlar kesintisiz izlenir.'
+        },
+        {
+          id: 'marka', tag: 'Arayüz', date: '7 Kasım 2026', icon: 'grid',
+          title: 'Tek Marka, Tek Deneyim',
+          body: 'Açılış sahnesinden oynatıcıya kadar her yüzey NOTFLİX kimliğiyle çalışır. Giriş, İletişim ve Geliştiriciye Destek panelleri her an bir tık uzağında; sorun ve önerilerini İletişim formundan bize yaz, en geç 24 saat içinde dönüş yapalım.'
+        },
+        {
+          id: 'kesintisiz', tag: 'Oynatma', date: '6 Kasım 2026', icon: 'play',
+          title: 'Kesintisiz İzleme Deneyimi',
+          body: 'Filmler, diziler ve animeler tam ekran oynatıcıda; bölüm geçişleri ve sezon takibi tek ekranda. Yayın kaynakları düzenli olarak yenilendiği için bekleme ve kopmalar en aza indi. İyi seyirler!'
+        }
+      ];
+      const ICONS = {
+        devices: '<rect x="2" y="4" width="13" height="9" rx="1.5"/><path d="M6 16h5M8.5 13v3"/><rect x="16" y="9" width="5" height="10" rx="1.2"/><path d="M18 17h1"/>',
+        flag: '<path d="M5 21V4m0 1h12l-2.5 3.5L17 12H5"/>',
+        spark: '<path d="M12 2v4m0 12v4M2 12h4m12 0h4M5 5l2.5 2.5M16.5 16.5 19 19M19 5l-2.5 2.5M7.5 16.5 5 19"/>',
+        lock: '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+        down: '<path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
+        grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+        play: '<circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l5.5-3.5z"/>',
+        live: '<circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.7 4.7a10.4 10.4 0 0 0 0 14.6M19.3 4.7a10.4 10.4 0 0 1 0 14.6"/>'
+      };
+      const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const KEY = 'nf_notif_read';
+      const readSet = () => { try { return new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); } catch (e) { return new Set(); } };
+      const saveRead = s => { try { localStorage.setItem(KEY, JSON.stringify([...s])); } catch (e) {} };
+      const fr = document.getElementById('filmmodu-frame');
+      const sendBell = () => {
+        const r = readSet();
+        const on = NOTIFS.some(n => !r.has(n.id));
+        try { fr.contentWindow.postMessage({ nf: 'cmd', cmd: 'belldot', on }, '*'); } catch (e) {}
+      };
+      const devicesSvg = () => '<div class="nfp-devices" aria-hidden="true"><svg viewBox="0 0 320 120" fill="none">' +
+        '<g class="nf-phone-g"><rect x="52" y="30" width="34" height="62" rx="6" stroke="#8a8f98" stroke-width="2"/><rect class="nf-screen" x="57" y="37" width="24" height="44" rx="2" fill="#e50914" opacity=".7"/><circle cx="69" cy="86" r="2" fill="#8a8f98"/></g>' +
+        '<g><rect x="130" y="22" width="120" height="72" rx="8" stroke="#8a8f98" stroke-width="2"/><rect class="nf-screen" x="138" y="30" width="104" height="56" rx="4" fill="#e50914" opacity=".55"/><path d="M172 102h36" stroke="#8a8f98" stroke-width="3" stroke-linecap="round"/><path d="M190 94v8" stroke="#8a8f98" stroke-width="3"/></g>' +
+        '<g stroke="#ff6b72" stroke-width="2" stroke-linecap="round"><path class="nf-wave" d="M268 48a14 14 0 0 1 0 24"/><path class="nf-wave w2" d="M276 40a26 26 0 0 1 0 40"/></g>' +
+        '<text x="160" y="116" text-anchor="middle" fill="rgba(255,255,255,.45)" font-size="9" letter-spacing="3" font-family="sans-serif">ÇOK YAKINDA</text></svg></div>';
+      const wrap = document.getElementById('nfNotifWrap');
+      const pool = document.getElementById('nfPool');
+      const detail = document.getElementById('nfDetailWrap');
+      const unreadCount = () => { const r = readSet(); return NOTIFS.filter(n => !r.has(n.id)).length; };
+      const syncHead = () => { document.getElementById('nfNotifCount').textContent = NOTIFS.length + ' bildirim, ' + (unreadCount() ? unreadCount() + ' okunmamış' : 'tümü okundu'); };
+      const renderList = () => {
+        const read = readSet();
+        pool.innerHTML = NOTIFS.map((n, i) =>
+          '<button type="button" class="nfp-row ' + (read.has(n.id) ? '' : 'unread') + (n.soon ? ' soon' : '') + '" data-nf-id="' + n.id + '" style="animation-delay:' + (i * 40) + 'ms">' +
+          '<span class="nfp-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' + (ICONS[n.icon] || ICONS.spark) + '</svg></span>' +
+          '<span class="nfp-txt"><b>' + esc(n.title) + '</b><span>' + esc(n.tag) + ', ' + esc(n.date) + '</span></span>' +
+          (read.has(n.id) ? '' : '<span class="nfp-dot"></span>') +
+          '<svg class="nfp-chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg></button>'
+        ).join('');
+        syncHead();
+      };
+      const panel = document.getElementById('nfNotifPanel');
+      // Çekmece zil'in altına yapışır: eski Facebook çekmecesi gibi olduğu yerde açılır.
+      const placePanel = () => {
+        const w = panel.offsetWidth || 372;
+        let top = 64, left = Math.max(12, innerWidth - w - 16), caret = w - 40;
+        try {
+          const b = fr.contentWindow.document.getElementById('nfBellNav');
+          if (b) {
+            const frR = fr.getBoundingClientRect(), bR = b.getBoundingClientRect();
+            const bx = frR.left + bR.left, bw = bR.width;
+            left = Math.min(Math.max(12, bx + bw - w + 14), innerWidth - w - 12);
+            top = Math.min(Math.max(8, frR.top + bR.bottom + 10), innerHeight - 120);
+            caret = Math.min(Math.max(18, bx + bw / 2 - left), w - 18);
+          }
+        } catch (e) {}
+        panel.style.top = top + 'px';
+        panel.style.left = left + 'px';
+        panel.style.setProperty('--caret', caret + 'px');
+      };
+      const closeList = () => wrap.classList.remove('open');
+      const openList = () => { renderList(); wrap.classList.add('open'); placePanel(); };
+      window.addEventListener('resize', () => { if (wrap.classList.contains('open')) placePanel(); });
+      fr.addEventListener('load', () => {
+        closeList();
+        try { fr.contentWindow.addEventListener('scroll', () => { if (wrap.classList.contains('open')) placePanel(); }, { passive: true }); } catch (e) {}
+      });
+      document.addEventListener('click', e => { if (wrap.classList.contains('open') && !e.target.closest('.nfp-card') && !e.target.closest('#nfDetailWrap')) closeList(); });
+      const closeDetail = () => detail.classList.remove('open');
+      const openDetail = id => {
+        const n = NOTIFS.find(x => x.id === id);
+        if (!n) return;
+        const ACCENTS = { devices: '#12d9a0', flag: '#f5a524', spark: '#4f8cff', lock: '#12d9a0', down: '#e50914', live: '#ff6b72', grid: '#c65cff', play: '#f5a524' };
+        const accent = ACCENTS[n.icon] || '#e50914';
+        const card = detail.querySelector('.nfd-card');
+        card.style.setProperty('--nfd-accent', accent);
+        card.style.setProperty('--nfd-glow', accent + '2b');
+        document.getElementById('nfDetailHero').innerHTML = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' + (ICONS[n.icon] || ICONS.spark) + '</svg>';
+        document.getElementById('nfDetailTag').innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' + (ICONS[n.icon] || ICONS.spark) + '</svg>' + esc(n.tag);
+        document.getElementById('nfDetailDate').textContent = n.date;
+        document.getElementById('nfDetailTitle').textContent = n.title;
+        document.getElementById('nfDetailDevices').innerHTML = n.devices ? devicesSvg() : '';
+        document.getElementById('nfDetailBody').textContent = n.body;
+        detail.classList.add('open');
+        const r = readSet();
+        if (!r.has(id)) {
+          r.add(id); saveRead(r);
+          const row = pool.querySelector('[data-nf-id="' + id + '"]');
+          if (row) { row.classList.remove('unread'); const d = row.querySelector('.nfp-dot'); if (d) d.remove(); }
+          syncHead(); sendBell();
+        }
+      };
+      pool.addEventListener('click', e => {
+        const row = e.target.closest('[data-nf-id]');
+        if (row) openDetail(row.dataset.nfId);
+      });
+      document.getElementById('nfNotifClose').addEventListener('click', closeList);
+      wrap.addEventListener('click', e => { if (e.target === wrap) closeList(); });
+      document.getElementById('nfDetailClose').addEventListener('click', closeDetail);
+      document.getElementById('nfDetailBack').addEventListener('click', closeDetail);
+      detail.addEventListener('click', e => { if (e.target === detail) closeDetail(); });
+      // Zil siteden gelir: panel mesajı listeyi açar; iframe hazır olunca nokta durumunu gönder.
+      window.addEventListener('message', e => {
+        const d = e.data;
+        if (!d) return;
+        if (d.nf === 'panel' && d.panel === 'bildirim') { if (wrap.classList.contains('open')) closeList(); else openList(); }
+        else if (d.nf === 'outside') closeList();
+        else if (d.nf === 'ready') sendBell();
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape') return;
+        if (document.getElementById('nfGate').classList.contains('on')) { e.stopImmediatePropagation(); return; }
+        if (detail.classList.contains('open')) { e.stopImmediatePropagation(); closeDetail(); return; }
+        if (wrap.classList.contains('open')) { e.stopImmediatePropagation(); closeList(); }
+      }, true);
+      syncHead();
+    })();
+
+    // Zorunlu güncelleme kapısı: yeni sürüm varsa arka plan kilitlenir; kapat/sonra yok, tek yol indirme+kurulum.
     (function () {
       const U = window.notflix && window.notflix.update;
-      const box = document.getElementById('nfUpdate');
-      if (!U || !box) return;
-      const title = document.getElementById('nfUpTitle');
-      const text = document.getElementById('nfUpText');
-      const openBtn = document.getElementById('nfUpOpen');
-      const laterBtn = document.getElementById('nfUpLater');
-      const prog = document.getElementById('nfUpProgress');
-      const bar = document.getElementById('nfUpBar');
-      const pct = document.getElementById('nfUpPct');
-      let url = '';
-      let busy = false;
-      let fallback = false;
-      const close = () => box.classList.remove('on');
-      document.getElementById('nfUpClose').addEventListener('click', close);
-      laterBtn.addEventListener('click', close);
+      if (!U) return;
+      const gate = document.getElementById('nfGate');
+      const title = document.getElementById('nfGateTitle');
+      const notes = document.getElementById('nfGateNotes');
+      const ver = document.getElementById('nfGateVer');
+      const bar = document.getElementById('nfGateBar');
+      const fill = document.getElementById('nfGateFill');
+      const status = document.getElementById('nfGateStatus');
+      const go = document.getElementById('nfGateGo');
+      const err = document.getElementById('nfGateErr');
+      let open = false, url = '';
       const fmtMB = n => (Number(n) / 1048576).toFixed(1) + ' MB';
-      const setProgress = p => {
-        if (!p) return;
-        prog.hidden = false;
-        pct.hidden = false;
-        if (p.phase === 'done') {
-          bar.style.width = '100%';
-          pct.textContent = 'İndirme tamamlandı, kurulum başlatılıyor. Uygulama kapanacak...';
+      if (U.onProgress) U.onProgress(p => {
+        if (!open || !p) return;
+        bar.hidden = false; status.hidden = false;
+        if (p.phase === 'done') { fill.style.width = '100%'; status.textContent = 'İndirme tamamlandı, kurulum başlıyor…'; return; }
+        const total = Number(p.total || 0), downloaded = Number(p.downloaded || 0);
+        const percent = p.percent != null ? Number(p.percent) : (total ? Math.round(downloaded / total * 100) : null);
+        if (percent != null) { fill.style.width = percent + '%'; status.textContent = 'İndiriliyor… %' + percent + (total ? ' (' + fmtMB(downloaded) + ' / ' + fmtMB(total) + ')' : ''); }
+        else { fill.style.width = '38%'; status.textContent = 'İndiriliyor… ' + fmtMB(downloaded); }
+      });
+      const showGate = r => {
+        if (open) return;
+        open = true; url = r.url || '';
+        document.getElementById('nfNotifWrap').classList.remove('open');
+        document.getElementById('nfDetailWrap').classList.remove('open');
+        title.textContent = 'Yeni sürüm hazır: v' + String(r.latest).replace(/^v/i, '');
+        if (r.notes) { notes.textContent = r.notes; notes.hidden = false; }
+        ver.textContent = 'Mevcut sürüm: v' + String(r.current).replace(/^v/i, '') + ' → Yeni sürüm: v' + String(r.latest).replace(/^v/i, '');
+        gate.classList.add('on');
+      };
+      go.addEventListener('click', async () => {
+        if (!url) return;
+        go.disabled = true; go.textContent = 'İndiriliyor…'; err.textContent = '';
+        bar.hidden = false; status.hidden = false; status.textContent = 'Başlatılıyor…';
+        let d;
+        try { d = await U.download(url); } catch (e) { d = { ok: false, error: String((e && e.message) || e) }; }
+        if (!d || !d.ok) {
+          err.textContent = 'İndirme başarısız: ' + ((d && d.error) || 'bilinmeyen hata') + '. Tekrar deneyebilirsin.';
+          go.disabled = false; go.textContent = 'Tekrar Dene';
           return;
         }
-        const total = Number(p.total || 0);
-        const downloaded = Number(p.downloaded || 0);
-        const percent = p.percent != null ? Number(p.percent) : (total ? Math.round(downloaded / total * 100) : 0);
-        bar.style.width = percent + '%';
-        pct.textContent = total
-          ? 'İndiriliyor... %' + percent + ' (' + fmtMB(downloaded) + ' / ' + fmtMB(total) + ')'
-          : 'İndiriliyor... ' + fmtMB(downloaded);
-      };
-      if (typeof U.onProgress === 'function') U.onProgress(setProgress);
-      openBtn.addEventListener('click', async () => {
-        if (!url) return;
-        if (fallback) { if (U.open) U.open(url); close(); return; }
-        if (busy) return;
-        busy = true;
-        openBtn.disabled = true;
-        laterBtn.disabled = true;
-        openBtn.textContent = 'İndiriliyor...';
-        prog.hidden = false;
-        pct.hidden = false;
-        bar.style.width = '0%';
-        pct.textContent = 'İndirme başlatılıyor...';
+        go.textContent = 'Kuruluyor…'; status.textContent = 'Kurulum açılıyor, uygulama kapanacak…';
         try {
-          const dl = await U.download(url);
-          if (!dl || !dl.ok) throw new Error((dl && dl.error) || 'İndirme başarısız');
-          title.textContent = 'Kurulum başlıyor';
-          text.textContent = (dl.fileName || 'Setup') + ' Electron kurulumu otomatik açılacak. Program kapanacak, yeni sürüm kurulum bitince açılacak.';
-          openBtn.textContent = 'Kuruluyor...';
-          // Setup'ta fake ilerleme yok: kurulum penceresi (Electron NSIS) kendi ilerlemesini gösterir
-          prog.hidden = true;
-          pct.hidden = true;
-          bar.classList.remove('idle');
-          const inst = await U.install(dl.filePath);
+          const inst = await U.install(d.filePath);
           if (!inst || !inst.ok) throw new Error((inst && inst.error) || 'Kurulum başlatılamadı');
-          // Kurulum Electron setupında otomatik açılır, birlet
         } catch (e) {
-          title.textContent = 'Güncelleme başarısız';
-          text.textContent = String((e && e.message) || e) + ' — İstersen sayfayı açıp manuel kurabilirsin.';
-          openBtn.disabled = false;
-          openBtn.textContent = 'Sayfayı Aç';
-          laterBtn.disabled = false;
-          busy = false;
-          fallback = true;
-          bar.classList.remove('idle');
-          prog.hidden = true;
-          pct.hidden = true;
+          err.textContent = 'Kurulum başlatılamadı. Tekrar dene.';
+          go.disabled = false; go.textContent = 'Tekrar Dene';
         }
       });
       const check = async () => {
+        if (open) return;
         try {
-          // Yeni sürüme geçmişsen bir kez haber ver, sonra hemen kapat (her açılışta tekrarlamasın)
-          try {
-            const j = await U.justInstalled();
-            if (j && j.ok) {
-              title.textContent = 'Güncelleme tamamlandı';
-              text.textContent = 'NOTFLİX yeni sürüme geçti. İyi seyirler!';
-              prog.hidden = true;
-              pct.hidden = true;
-              openBtn.style.display = 'none';
-              box.classList.add('on');
-              setTimeout(close, 6000);
-              return;
-            }
-          } catch {}
+          const j = await U.justInstalled();
+          if (j && j.ok) {
+            const toast = document.getElementById('nfToast');
+            toast.classList.add('on');
+            setTimeout(() => toast.classList.remove('on'), 6000);
+            return;
+          }
+        } catch (e) {}
+        try {
           const r = await U.check();
-          if (!r || !r.ok || !r.update) return;
-          url = r.url || '';
-          title.textContent = 'Yeni sürüm v' + String(r.latest).replace(/^v/i, '') + ' hazır';
-          text.textContent = (r.notes ? r.notes + ' ' : '') + 'Mevcut sürüm: v' + String(r.current).replace(/^v/i, '');
-          openBtn.style.display = url ? '' : 'none';
-          openBtn.textContent = 'İndir ve Kur';
-          openBtn.disabled = false;
-          fallback = false;
-          bar.classList.remove('idle');
-          bar.style.width = '0%';
-          prog.hidden = true;
-          pct.hidden = true;
-          box.classList.add('on');
+          if (r && r.ok && r.update && r.url) showGate(r);
         } catch (e) {}
       };
       setTimeout(check, 5000);

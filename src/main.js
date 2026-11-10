@@ -5,6 +5,8 @@ const http = require('http');
 const https = require('https');
 const { spawn } = require('child_process');
 const account = require('./account');
+const { createSiteProxy } = require('./site-proxy');
+const scraper = require('./scraper');
 
 let mainWin = null;
 
@@ -16,10 +18,14 @@ const ROOT = path.join(__dirname, '..');
 // file://'dan "oynatıcı hatası" verir. Sıfır maliyet, yalnızca kendi dosyalarımızı sunan dahili sunucu.
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.ico': 'image/x-icon', '.m3u8': 'application/vnd.apple.mpegurl' };
 let appUrl = null;
+let siteProxy = null;
 function startServer() {
   return new Promise(resolve => {
     const srv = http.createServer((req, res) => {
-      let p = decodeURIComponent((req.url || '/').split('?')[0]);
+      const raw = req.url || '/';
+      // Yerel site kilidi: arayüz bizden sunulur, kaynak kapanırsa yerel kopya devam eder.
+      if (raw.startsWith('/site/') || raw === '/site') return siteProxy.handle(req, res, raw.slice(5));
+      let p = decodeURIComponent(raw.split('?')[0]);
       if (p === '/' || p === '') p = '/index.html';
       const fp = path.normalize(path.join(ROOT, p));
       if (!fp.startsWith(ROOT)) { res.writeHead(403); return res.end('forbidden'); }
@@ -33,7 +39,8 @@ function startServer() {
   });
 }
 
-// Bu kabuk disaridan hicbir sey yuklemiyor: tek adres kendi klasorumuz.
+// Kabuk kendi dosyalarını yerel sunucudan verir; gömülü arayüz /site/ üzerinden
+// önbellekli yerel kilit katmanından geçer (kaynak site kapanınca arayüz bizde kalır).
 app.commandLine.appendSwitch('disable-features', 'Translate,MediaControlsShowThumbnailPreview');
 
 function createWindow (hidden) {
@@ -50,7 +57,7 @@ function createWindow (hidden) {
     title: 'NOTFLİX',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      additionalArguments: ['--notflix-content-path=' + contentPath],
+      additionalArguments: ['--notflix-content-path=' + contentPath, '--notflix-userdata=' + app.getPath('userData')],
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -66,8 +73,10 @@ function createWindow (hidden) {
 }
 
 app.whenReady().then(async () => {
+  siteProxy = createSiteProxy(path.join(app.getPath('userData'), 'site-cache'));
   await startServer();
   account.init();
+  scraper.init(ROOT, app.getPath('userData'), () => mainWin);
   // Tam ekran ve DRM (encrypted-media) izinleri serbest; konum/bildirim/kamera gibi gereksiz istekler reddedilir.
   await session.defaultSession.setPermissionRequestHandler((wc, permission, cb) => {
     const allow = new Set(['fullscreen', 'mediaKeySystem', 'pointerLock']);
@@ -95,7 +104,11 @@ app.whenReady().then(async () => {
     { urls: ['*://*/*'] },
     (details, cb) => {
       const u = details.url || '';
-      if (/load\.[^/]*\.autos|\.m3u8|\.ts(\?|$)|prectv73|\.urlset/i.test(u)) {
+      // FilmModu CDN'i (pilavyer): token origin kilidi filmmodu.news ister.
+      if (/pilavyerplay\.top|pilavyer2\.top/i.test(u)) {
+        details.requestHeaders['Referer'] = 'https://filmmodu.news/';
+        details.requestHeaders['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+      } else if (/load\.[^/]*\.autos|\.m3u8|\.ts(\?|$)|prectv73|\.urlset/i.test(u)) {
         details.requestHeaders['Referer'] = 'https://twitter.com/';
         if (details.requestHeaders['User-Agent']) details.requestHeaders['User-Agent'] = 'googleusercontent';
       }
@@ -351,9 +364,9 @@ app.whenReady().then(async () => {
         const frame = webFrameMain.fromId(frameProcessId, frameRoutingId);
         if (!frame) return;
         const url = frame.url || '';
-        if (/filmmodu\.news/.test(url)) {
+        if (/filmmodu\.news/.test(url) || (appUrl && url.startsWith(appUrl + '/site/'))) {
           frame.executeJavaScript(injectSrc).then(() => frame.executeJavaScript(
-            "JSON.stringify({brand:document.querySelectorAll('.nf-word').length,forum:document.querySelectorAll('a[href*=\"/forum\"]').length,giris:document.querySelectorAll('a[data-nf-panel=\"giris\"]').length,iletisim:document.querySelectorAll('a[data-nf-panel=\"iletisim\"]').length,bagisNav:document.querySelectorAll('#nfBagisNav').length,bagisFooter:document.querySelectorAll('#nfBagisFooter').length,premium:document.querySelectorAll('a[href*=\"/premium\"]').length,canli:document.querySelectorAll('#nfCanliNav').length,report:document.querySelectorAll('.tb-pop').length,react:document.querySelectorAll('[x-data*=\"dislikes\"]').length,yorum:document.querySelectorAll('#yorumlar').length,legal:document.querySelectorAll('[data-nf-legal]').length,telifbox:(document.body.innerText.match(/telifbox/gi)||[]).length,langBtn:document.querySelectorAll('button[aria-label=\"Dil seç\"]').length,fmText:(document.body.innerText.match(/filmmodu/gi)||[]).length,title:document.title})"
+            "JSON.stringify({brand:document.querySelectorAll('.nf-word').length,forum:document.querySelectorAll('a[href*=\"/forum\"]').length,giris:document.querySelectorAll('a[data-nf-panel=\"giris\"]').length,iletisim:document.querySelectorAll('a[data-nf-panel=\"iletisim\"]').length,bagisNav:document.querySelectorAll('#nfBagisNav').length,bell:document.querySelectorAll('#nfBellNav').length,bagisFooter:document.querySelectorAll('#nfBagisFooter').length,premium:document.querySelectorAll('a[href*=\"/premium\"]').length,canli:document.querySelectorAll('#nfCanliNav').length,report:document.querySelectorAll('.tb-pop').length,react:document.querySelectorAll('[x-data*=\"dislikes\"]').length,yorum:document.querySelectorAll('#yorumlar').length,legal:document.querySelectorAll('[data-nf-legal]').length,telifbox:(document.body.innerText.match(/telifbox/gi)||[]).length,langBtn:document.querySelectorAll('button[aria-label=\"Dil seç\"]').length,fmText:(document.body.innerText.match(/filmmodu/gi)||[]).length,title:document.title})"
           )).then(r => console.log('EMBED-BRAND:', r)).catch(() => {});
         } else if (/131\.123\.43\.89/.test(url)) {
           // Canlı TV: sol nav gizle + accent paleti (eski davranış, düzen bozmadan)

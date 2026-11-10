@@ -10,7 +10,7 @@
     ".nf-word{display:inline-block;height:1.6em;width:auto;vertical-align:middle;overflow:visible;filter:drop-shadow(0 0 .05em rgba(229,9,20,.55)) drop-shadow(0 .03em .16em rgba(229,9,20,.4))}" +
     // SERT MARKA GARANTİSİ: orijinal "Film/modu" span'leri CSS ile anında gizlenir (JS yetişmese bile,
     // SPA geçişinde yeni eklenen logo dahil tek frame görünmez). Bizim .nf-word her zaman görünür.
-    "a[href='https://filmmodu.news']>span:not(.nf-word),a[href='https://filmmodu.news/']>span:not(.nf-word),a.tracking-tightest>span:not(.nf-word),a[href='/']>span.text-accent,a[href='/']>span.text-white{visibility:hidden!important}" +
+    "a[href='https://filmmodu.news']>span:not(.nf-word),a[href='https://filmmodu.news/']>span:not(.nf-word),a.tracking-tightest>span:not(.nf-word),a[href='/']>span.text-accent,a[href='/']>span.text-white,a[href='/site']>span.text-accent,a[href='/site']>span.text-white,a[href='/site/']>span.text-accent,a[href='/site/']>span.text-white{visibility:hidden!important}" +
     // Üst utility çubuğunu sola kaydır: bizim pencere kontrol butonlarıyla (sağ üst) çakışmasın.
     "header>div:first-child .container-site{padding-right:150px!important;max-width:none!important}" +
     // Ana menü sekmeleri ekranın ortasında kalmasın: header satırını tam genişliğe al, sekmeleri sola çek.
@@ -53,6 +53,26 @@
     // Kırmızı yanıp sönen çember yok: yalnızca metin ve 7/24 rozeti.
     a.innerHTML = 'Canlı TV <span class="rounded-pill bg-red-600 px-1 text-xs font-bold uppercase tracking-wide text-white">7/24</span>';
     cd.parentNode.insertBefore(a, cd);
+  }
+
+  // Bildirim zili: Geliştiriciye Destek butonunun hemen yanında (site başlığında).
+  function addBellNav() {
+    if (document.getElementById('nfBellNav')) return;
+    const slot = document.querySelector('header .ml-auto') || document.querySelector('header');
+    if (!slot) return;
+    const b = document.createElement('button');
+    b.id = 'nfBellNav';
+    b.type = 'button';
+    b.title = 'Bildirimler';
+    b.setAttribute('aria-label', 'Bildirimler');
+    b.style.cssText = 'position:relative;display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;margin-inline-end:8px;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(255,255,255,.08);color:#e8eaee;cursor:pointer;transition:border-color .15s,color .15s,background .15s;';
+    b.innerHTML = '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span id="nfBellNavDot" style="position:absolute;top:3px;right:4px;width:9px;height:9px;border-radius:999px;background:#e50914;box-shadow:0 0 0 2px #0a0a0a;"></span>';
+    b.addEventListener('mouseenter', () => { b.style.borderColor = 'rgba(229,9,20,.65)'; b.style.background = 'rgba(229,9,20,.18)'; b.style.color = '#fff'; });
+    b.addEventListener('mouseleave', () => { b.style.borderColor = 'rgba(255,255,255,.2)'; b.style.background = 'rgba(255,255,255,.08)'; b.style.color = '#e8eaee'; });
+    b.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); open('bildirim'); });
+    const bagis = document.getElementById('nfBagisNav');
+    if (bagis && bagis.parentNode === slot) slot.insertBefore(b, bagis);
+    else slot.appendChild(b);
   }
 
   // Görünür metinlerde kalan "filmmodu" adlarını NOTFLİX yap (script/style/URL hariç).
@@ -225,7 +245,7 @@
       if (done.has(a)) return;
       const href = a.getAttribute('href') || '';
       const txt = (a.textContent || '').replace(/\s/g, '');
-      if (/^https?:\/\/filmmodu\.news\/?$/.test(href) && /filmmodu/i.test(txt)) {
+      if ((/^https?:\/\/filmmodu\.news\/?$/.test(href) || /^\/site\/?$/.test(href) || href === '/') && /filmmodu/i.test(txt)) {
         done.add(a);
         a.innerHTML = WORD;
         a.setAttribute('aria-label', 'NOTFLİX');
@@ -265,6 +285,7 @@
     addCanliNav();
     removeLiveDots();
     addBagis();
+    addBellNav();
     removeReport();
     hideRating();
     lockLang();
@@ -279,6 +300,11 @@
     if (a) { e.preventDefault(); e.stopPropagation(); open(a.dataset.nfPanel); }
   }, true);
 
+  // Çekmece açıkken site içinde başka bir yere tıklanırsa çekmece kapanır.
+  document.addEventListener('click', e => {
+    if (!(e.target.closest && e.target.closest('#nfBellNav'))) post({ nf: 'outside' });
+  }, true);
+
   // Senkron observer: DOM değiştiği anda (paint'ten önce) yeniden markala → eski marka flaşı olmaz.
   let applying = false;
   const obs = new MutationObserver(() => {
@@ -291,6 +317,19 @@
   // Tam sayfa geçişinde eski marka bir an görünmesin: ayrılırken iframe'i gizle, hazır olunca göster.
   window.addEventListener('pagehide', () => post({ nf: 'hide' }));
   window.addEventListener('beforeunload', () => post({ nf: 'hide' }));
+
+  // Üst kabuktan gelen komutlar: zil noktası durumu ve katalogdan site içi sayfa açma.
+  window.addEventListener('message', e => {
+    if (e.source !== window.parent) return;
+    const d = e.data;
+    if (!d || d.nf !== 'cmd') return;
+    if (d.cmd === 'belldot') {
+      const dot = document.getElementById('nfBellNavDot');
+      if (dot) dot.style.display = d.on ? '' : 'none';
+    } else if (d.cmd === 'goto' && /^https:\/\/filmmodu\.news\/(film|dizi|anime)\//.test(String(d.url || ''))) {
+      location.href = d.url;
+    }
+  });
 
   apply();
   post({ nf: 'ready' });

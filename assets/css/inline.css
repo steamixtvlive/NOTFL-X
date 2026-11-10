@@ -13,3 +13,44 @@
 .right-6 { right: 1.5rem; }
 .left-0 { left: 0; }
 .right-0 { right: 0; }
+
+/* ===== NOTFLİX bildirimler + güncelleme kapısı ===== */
+@keyframes nfSpin { to { transform: rotate(360deg); } }
+@keyframes nfModalIn { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes nfFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes nfDotPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(229,9,20,.55); } 60% { box-shadow: 0 0 0 6px rgba(229,9,20,0); } }
+#nfBellDot { animation: nfDotPulse 2s ease infinite; }
+.nf-modal-backdrop { position: fixed; inset: 0; z-index: 2147483200; background: rgba(4,5,10,.72); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; padding: 20px; animation: nfFadeIn .22s ease; }
+.nf-modal { width: min(680px, 100%); max-height: min(82vh, 760px); display: flex; flex-direction: column; overflow: hidden; border-radius: 20px; border: 1px solid rgba(255,255,255,.1); background: linear-gradient(180deg, #181818 0%, #101010 100%); box-shadow: 0 40px 90px -20px rgba(0,0,0,.85), 0 0 0 1px rgba(229,9,20,.06); animation: nfModalIn .3s cubic-bezier(.2,.9,.3,1); }
+.nf-modal-head { display: flex; align-items: center; gap: 12px; padding: 18px 22px 14px; border-bottom: 1px solid rgba(255,255,255,.07); background: linear-gradient(90deg, rgba(229,9,20,.08), transparent 55%); }
+.nf-pool { overflow-y: auto; padding: 14px 16px 18px; scrollbar-width: thin; scrollbar-color: #3a3a3a transparent; }
+.nf-pool::-webkit-scrollbar { width: 8px; }
+.nf-pool::-webkit-scrollbar-track { background: transparent; margin: 6px 0; }
+.nf-pool::-webkit-scrollbar-thumb { background: #333; border-radius: 8px; border: 2px solid #101010; }
+.nf-pool::-webkit-scrollbar-thumb:hover { background: #e50914; }
+.nf-notif { position: relative; border: 1px solid rgba(255,255,255,.07); border-radius: 14px; background: rgba(255,255,255,.025); padding: 16px 18px; margin-bottom: 12px; transition: border-color .2s, background .2s; }
+.nf-notif:hover { border-color: rgba(229,9,20,.35); background: rgba(255,255,255,.045); }
+.nf-notif.unread { border-left: 3px solid #e50914; }
+.nf-notif .nf-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #ff6b72; background: rgba(229,9,20,.12); border: 1px solid rgba(229,9,20,.25); padding: 3px 8px; border-radius: 999px; }
+.nf-notif h3 { margin: 8px 0 6px; font-size: 15px; font-weight: 700; color: #fff; }
+.nf-notif p { margin: 0; font-size: 13px; line-height: 1.65; color: #b6bcc6; }
+.nf-notif .nf-date { font-size: 10px; color: #8a8f98; letter-spacing: .06em; }
+.nf-unread-dot { position: absolute; top: 16px; right: 16px; width: 8px; height: 8px; border-radius: 50%; background: #e50914; }
+/* Mobil + TV Box animasyonu */
+.nf-devices { position: relative; height: 120px; margin: 12px 0 4px; border-radius: 12px; overflow: hidden; background: radial-gradient(ellipse 70% 90% at 50% 110%, rgba(229,9,20,.22), transparent 65%), #0b0b10; border: 1px solid rgba(255,255,255,.06); }
+.nf-devices svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+@keyframes nfScreenGlow { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+@keyframes nfWave { 0% { opacity: 0; transform: scale(.6); } 35% { opacity: .9; } 100% { opacity: 0; transform: scale(1.5); } }
+@keyframes nfFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.nf-screen { animation: nfScreenGlow 2.6s ease infinite; }
+.nf-wave { transform-origin: center; transform-box: fill-box; animation: nfWave 2.2s ease-out infinite; }
+.nf-wave.w2 { animation-delay: .7s; }
+.nf-phone-g { animation: nfFloat 3.4s ease-in-out infinite; }
+/* Güncelleme kapısı */
+.nf-gate { position: fixed; inset: 0; z-index: 2147483600; display: flex; align-items: center; justify-content: center; padding: 24px; background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(229,9,20,.14), transparent 60%), rgba(4,5,10,.96); backdrop-filter: blur(14px); animation: nfFadeIn .3s ease; }
+.nf-gate-card { width: min(560px, 100%); border-radius: 22px; border: 1px solid rgba(255,255,255,.1); background: linear-gradient(180deg, #1a1a1a, #0e0e0e); box-shadow: 0 50px 100px -20px rgba(0,0,0,.9); padding: 34px 34px 30px; text-align: center; animation: nfModalIn .35s cubic-bezier(.2,.9,.3,1); }
+@keyframes nfGatePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(229,9,20,.4); } 60% { box-shadow: 0 0 0 16px rgba(229,9,20,0); } }
+.nf-gate-ico { width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(229,9,20,.14); border: 1px solid rgba(229,9,20,.4); color: #ff5b62; animation: nfGatePulse 2.4s ease infinite; }
+.nf-gate-bar { height: 8px; border-radius: 8px; background: rgba(255,255,255,.08); overflow: hidden; margin-top: 18px; }
+.nf-gate-bar i { display: block; height: 100%; width: 0; border-radius: 8px; background: linear-gradient(90deg, #e50914, #ff6b72); transition: width .25s ease; }
+.nf-toast { position: fixed; right: 18px; bottom: 18px; z-index: 2147483300; display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 12px; border: 1px solid rgba(18,217,160,.35); background: rgba(10,20,16,.92); color: #7fe9c8; font-size: 13px; font-weight: 600; box-shadow: 0 16px 40px rgba(0,0,0,.6); animation: nfModalIn .3s ease; }

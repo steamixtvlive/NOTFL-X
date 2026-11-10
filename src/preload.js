@@ -4,14 +4,19 @@ const path = require('path');
 const pkg = require('../package.json');
 
 const arg = process.argv.find(a => a.startsWith('--notflix-content-path=')) || '';
+const udArg = process.argv.find(a => a.startsWith('--notflix-userdata=')) || '';
+const userDataDir = udArg.replace('--notflix-userdata=', '');
 let content = { hero: { slides: [] }, rails: {}, grids: {}, episodes: {}, details: {}, genres: [], platforms: [] };
 let vod = null;
 try {
   const p = arg.replace('--notflix-content-path=', '');
   if (p) {
     content = JSON.parse(fs.readFileSync(p, 'utf8'));
+    // Scraper'ın tazelediği kopya öncelikli; yoksa paketle gelen temel katalog.
+    const up = userDataDir && path.join(userDataDir, 'vod.json');
     const vp = path.join(path.dirname(p), 'vod.json');
-    if (fs.existsSync(vp)) vod = JSON.parse(fs.readFileSync(vp, 'utf8'));
+    if (up && fs.existsSync(up)) vod = JSON.parse(fs.readFileSync(up, 'utf8'));
+    else if (fs.existsSync(vp)) vod = JSON.parse(fs.readFileSync(vp, 'utf8'));
   }
 } catch (e) {}
 
@@ -21,6 +26,15 @@ contextBridge.exposeInMainWorld('notflix', {
   version: pkg.version,
   mail: {
     send: (payload) => ipcRenderer.invoke('mail:send', payload)
+  },
+  stream: {
+    resolve: (pageUrl) => ipcRenderer.invoke('stream:resolve', pageUrl)
+  },
+  data: {
+    top250: () => ipcRenderer.invoke('data:top250')
+  },
+  catalog: {
+    onUpdate: (cb) => ipcRenderer.on('catalog:updated', (_e, s) => cb(s))
   },
   update: {
     check: () => ipcRenderer.invoke('update:check'),
